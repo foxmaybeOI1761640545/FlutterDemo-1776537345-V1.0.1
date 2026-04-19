@@ -1,0 +1,10 @@
+{
+  "name": "Flutter Demo",
+  "short_name": "FlutterDemo",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1976d2",
+  "description": "A Flutter demo with rainbow cycling text.",
+  "orientation": "portrait-primary"
+}

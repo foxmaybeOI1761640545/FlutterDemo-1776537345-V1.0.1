@@ -6,3 +6,14 @@ dist
 # Manual testing artifacts
 docs/_artifacts/
 docs/01-FlutterRemoteDevFlow
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+.packages
+build/
+coverage/
+ios/Flutter/.last_build_id
+*.log
