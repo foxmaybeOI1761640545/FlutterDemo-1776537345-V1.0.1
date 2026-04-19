@@ -129,18 +129,12 @@ class MetronomeEngine {
   MetronomeEngine({
     required this.onTick,
     required this.onStop,
-  }) {
-    for (final AudioPlayer player in _players) {
-      unawaited(player.setReleaseMode(ReleaseMode.stop));
-      unawaited(player.setPlayerMode(PlayerMode.lowLatency));
-    }
-  }
+  });
 
   final void Function(int beat, int subTick) onTick;
   final VoidCallback onStop;
 
-  final List<AudioPlayer> _players =
-      List<AudioPlayer>.generate(4, (int _) => AudioPlayer());
+  List<AudioPlayer>? _players;
   final _ClickSoundCache _soundCache = _ClickSoundCache();
 
   Timer? _timer;
@@ -153,6 +147,22 @@ class MetronomeEngine {
 
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
+
+  List<AudioPlayer> _ensurePlayers() {
+    final List<AudioPlayer>? existing = _players;
+    if (existing != null) {
+      return existing;
+    }
+
+    final List<AudioPlayer> created =
+        List<AudioPlayer>.generate(4, (int _) => AudioPlayer());
+    for (final AudioPlayer player in created) {
+      unawaited(player.setReleaseMode(ReleaseMode.stop));
+      unawaited(player.setPlayerMode(PlayerMode.lowLatency));
+    }
+    _players = created;
+    return created;
+  }
 
   void updateConfig(MetronomeConfig config) {
     _config = config.normalized();
@@ -172,6 +182,7 @@ class MetronomeEngine {
     }
     _isPlaying = true;
     _tickCounter = 0;
+    _ensurePlayers();
     _handleTick();
     _restartTimer();
   }
@@ -185,7 +196,7 @@ class MetronomeEngine {
     _timer = null;
     _isPlaying = false;
 
-    for (final AudioPlayer player in _players) {
+    for (final AudioPlayer player in _players ?? const <AudioPlayer>[]) {
       unawaited(player.stop());
     }
 
@@ -194,9 +205,10 @@ class MetronomeEngine {
 
   void dispose() {
     stop();
-    for (final AudioPlayer player in _players) {
+    for (final AudioPlayer player in _players ?? const <AudioPlayer>[]) {
       unawaited(player.dispose());
     }
+    _players = null;
   }
 
   void _restartTimer() {
@@ -249,8 +261,9 @@ class MetronomeEngine {
     }
 
     final Uint8List bytes = _soundCache.resolveBytes(tone: _tone, kind: kind);
-    _playerCursor = (_playerCursor + 1) % _players.length;
-    final AudioPlayer player = _players[_playerCursor];
+    final List<AudioPlayer> players = _ensurePlayers();
+    _playerCursor = (_playerCursor + 1) % players.length;
+    final AudioPlayer player = players[_playerCursor];
 
     unawaited(player.stop());
     unawaited(
