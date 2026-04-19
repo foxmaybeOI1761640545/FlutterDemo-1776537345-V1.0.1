@@ -13,9 +13,36 @@ Minimal Flutter sample with one centered button-driven text toggle and a rainbow
 
 - `lib/main.dart`: UI and rainbow animation
 - `test/widget_test.dart`: widget toggle test
-- `.github/workflows/build-release.yml`: GitHub Actions build and package flow
+- `.github/workflows/build-release.yml`: build test pipeline and release asset publishing
+- `.github/workflows/deploy-pages.yml`: GitHub Pages deployment workflow
 
-## CI Build/Package
+## CI Build/Package/Release
 
-- Push `main`: run tests, build web, upload artifact.
-- Push tag like `v1.0.0`: also publish release asset `flutter-web-build.tar.gz`.
+- Push `main`:
+  - run widget tests
+  - build Flutter Web package (`flutter-web-build.tar.gz`)
+  - build Windows 10 x64 package (`flutter-windows-x64.zip`)
+  - upload both artifacts
+  - trigger GitHub Pages deployment workflow
+
+- Push tag like `v1.0.0`:
+  - run the same builds
+  - publish GitHub Release with two assets:
+    - `flutter-web-build.tar.gz`
+    - `flutter-windows-x64.zip`
+
+## GitHub Pages URL
+
+After `deploy-flutter-web-to-pages` succeeds, the web app URL is:
+
+`https://<your-github-username>.github.io/<repository-name>/`
+
+For this repository, it will be:
+
+`https://foxmaybeOI1761640545.github.io/FlutterDemo-1776537345-V1.0.1/`
+
+## One-Time Repository Setting
+
+In GitHub repository settings, ensure Pages is configured to use:
+
+- Source: `GitHub Actions`
