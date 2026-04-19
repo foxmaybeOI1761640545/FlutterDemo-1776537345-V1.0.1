@@ -1,0 +1,100 @@
+name: build-and-release-android-packages
+
+on:
+  workflow_run:
+    workflows:
+      - build-and-release-flutter
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to package (for example: v1.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build_android:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve release tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.event.workflow_run.head_branch }}"
+          fi
+
+          if [ -z "${TAG}" ]; then
+            echo "Cannot resolve release tag."
+            exit 1
+          fi
+
+          if [[ "${TAG}" != v* ]]; then
+            echo "Tag must start with v. Resolved tag: ${TAG}"
+            exit 1
+          fi
+
+          echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "APP_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Checkout tag source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Ensure Android platform files
+        run: |
+          if [ ! -d "android" ]; then
+            flutter create --platforms=android .
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Build Android App Bundle
+        run: flutter build appbundle --release
+
+      - name: Prepare Android release assets
+        run: |
+          APP_NAME="$(grep -m1 '^name:' pubspec.yaml | awk '{print $2}')"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/${APP_NAME}-${APP_VERSION}-android-release.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "dist/${APP_NAME}-${APP_VERSION}-android-release.aab"
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-android-packages
+          path: dist/*
+
+      - name: Attach Android packages to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: |
+            dist/*-android-release.apk
+            dist/*-android-release.aab
+          fail_on_unmatched_files: true

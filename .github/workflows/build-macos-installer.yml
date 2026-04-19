@@ -1,0 +1,97 @@
+name: build-and-release-macos-installer
+
+on:
+  workflow_run:
+    workflows:
+      - build-and-release-flutter
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to package (for example: v1.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build_macos:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: macos-latest
+
+    steps:
+      - name: Resolve release tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.event.workflow_run.head_branch }}"
+          fi
+
+          if [ -z "${TAG}" ]; then
+            echo "Cannot resolve release tag."
+            exit 1
+          fi
+
+          if [[ "${TAG}" != v* ]]; then
+            echo "Tag must start with v. Resolved tag: ${TAG}"
+            exit 1
+          fi
+
+          echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "APP_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Checkout tag source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Ensure macOS platform files
+        run: |
+          if [ ! -d "macos" ]; then
+            flutter create --platforms=macos .
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS app
+        run: flutter build macos --release
+
+      - name: Prepare macOS installer assets
+        run: |
+          APP_NAME="$(grep -m1 '^name:' pubspec.yaml | awk '{print $2}')"
+          APP_BUNDLE="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "${APP_BUNDLE}" ]; then
+            echo "Cannot find built .app bundle."
+            exit 1
+          fi
+
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "${APP_BUNDLE}" "dist/${APP_NAME}-${APP_VERSION}-macos-app.zip"
+          hdiutil create -volname "${APP_NAME}" -srcfolder "${APP_BUNDLE}" -ov -format UDZO "dist/${APP_NAME}-${APP_VERSION}-macos.dmg"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-macos-installer
+          path: dist/*
+
+      - name: Attach macOS installer to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: |
+            dist/*-macos-app.zip
+            dist/*-macos.dmg
+          fail_on_unmatched_files: true

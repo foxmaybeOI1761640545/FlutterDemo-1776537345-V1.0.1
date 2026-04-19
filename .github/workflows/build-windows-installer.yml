@@ -1,0 +1,164 @@
+name: build-and-release-windows-installer
+
+on:
+  workflow_run:
+    workflows:
+      - build-and-release-flutter
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to package (for example: v1.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build_installer:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: windows-latest
+
+    steps:
+      - name: Resolve release tag
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ inputs.tag }}"
+          } else {
+            $tag = "${{ github.event.workflow_run.head_branch }}"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw "Cannot resolve release tag."
+          }
+          if (-not $tag.StartsWith("v")) {
+            throw "Tag must start with 'v'. Resolved tag: $tag"
+          }
+
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+          "APP_VERSION=$($tag.TrimStart('v'))" >> $env:GITHUB_ENV
+
+      - name: Checkout tag source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop support
+        shell: pwsh
+        run: flutter config --enable-windows-desktop
+
+      - name: Ensure Windows platform files
+        shell: pwsh
+        run: |
+          if (!(Test-Path "windows")) {
+            flutter create --platforms=windows .
+          }
+
+      - name: Install dependencies
+        shell: pwsh
+        run: flutter pub get
+
+      - name: Build Windows x64
+        shell: pwsh
+        run: flutter build windows --release
+
+      - name: Resolve app metadata
+        shell: pwsh
+        run: |
+          $nameMatch = Select-String -Path "pubspec.yaml" -Pattern "^name:\s*(.+)$" | Select-Object -First 1
+          if ($null -eq $nameMatch) {
+            throw "Cannot resolve app name from pubspec.yaml"
+          }
+
+          $appName = $nameMatch.Matches[0].Groups[1].Value.Trim()
+          $releaseDir = "build\windows\x64\runner\Release"
+          $appExe = "$appName.exe"
+
+          if (!(Test-Path (Join-Path $releaseDir $appExe))) {
+            $fallbackExe = Get-ChildItem -Path $releaseDir -Filter "*.exe" | Select-Object -First 1
+            if ($null -eq $fallbackExe) {
+              throw "No executable found in $releaseDir"
+            }
+            $appExe = $fallbackExe.Name
+          }
+
+          "APP_NAME=$appName" >> $env:GITHUB_ENV
+          "APP_EXE=$appExe" >> $env:GITHUB_ENV
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Create Inno Setup script
+        shell: pwsh
+        run: |
+          @"
+          #define MyAppName "$env:APP_NAME"
+          #define MyAppVersion "$env:APP_VERSION"
+          #define MyAppExe "$env:APP_EXE"
+
+          [Setup]
+          AppId={#MyAppName}-windows-x64
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppName}
+          DefaultDirName={autopf}\{#MyAppName}
+          DefaultGroupName={#MyAppName}
+          DisableProgramGroupPage=yes
+          OutputDir=dist
+          OutputBaseFilename={#MyAppName}-{#MyAppVersion}-windows-x64-setup
+          Compression=lzma
+          SolidCompression=yes
+          ArchitecturesAllowed=x64
+          ArchitecturesInstallIn64BitMode=x64
+          WizardStyle=modern
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
+          [Files]
+          Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"
+          Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\{#MyAppExe}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+          "@ | Set-Content -Path "windows-installer.iss" -Encoding UTF8
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            throw "Inno Setup compiler not found at: $iscc"
+          }
+          & $iscc "windows-installer.iss"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-windows-x64-installer
+          path: dist\*-windows-x64-setup.exe
+
+      - name: Attach installer to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: dist\*-windows-x64-setup.exe
+          fail_on_unmatched_files: true

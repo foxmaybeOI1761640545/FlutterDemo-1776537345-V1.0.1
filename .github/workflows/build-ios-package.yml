@@ -1,0 +1,98 @@
+name: build-and-release-ios-package
+
+on:
+  workflow_run:
+    workflows:
+      - build-and-release-flutter
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to package (for example: v1.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build_ios:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: macos-latest
+
+    steps:
+      - name: Resolve release tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.event.workflow_run.head_branch }}"
+          fi
+
+          if [ -z "${TAG}" ]; then
+            echo "Cannot resolve release tag."
+            exit 1
+          fi
+
+          if [[ "${TAG}" != v* ]]; then
+            echo "Tag must start with v. Resolved tag: ${TAG}"
+            exit 1
+          fi
+
+          echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "APP_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Checkout tag source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Ensure iOS platform files
+        run: |
+          if [ ! -d "ios" ]; then
+            flutter create --platforms=ios .
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS app (no code signing)
+        run: flutter build ios --release --no-codesign
+
+      - name: Prepare unsigned IPA
+        run: |
+          APP_NAME="$(grep -m1 '^name:' pubspec.yaml | awk '{print $2}')"
+          APP_BUNDLE="$(find build/ios/iphoneos -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "${APP_BUNDLE}" ]; then
+            echo "Cannot find built .app bundle in build/ios/iphoneos."
+            exit 1
+          fi
+
+          mkdir -p package/Payload dist
+          cp -R "${APP_BUNDLE}" package/Payload/
+          (
+            cd package
+            /usr/bin/zip -r "../dist/${APP_NAME}-${APP_VERSION}-ios-unsigned.ipa" Payload
+          )
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-ios-unsigned-ipa
+          path: dist/*-ios-unsigned.ipa
+
+      - name: Attach unsigned IPA to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: dist/*-ios-unsigned.ipa
+          fail_on_unmatched_files: true
