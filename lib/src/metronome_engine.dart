@@ -131,6 +131,8 @@ class MetronomeEngine {
     required this.onStop,
   });
 
+  static bool disablePlatformAudio = false;
+
   final void Function(int beat, int subTick) onTick;
   final VoidCallback onStop;
 
@@ -182,7 +184,6 @@ class MetronomeEngine {
     }
     _isPlaying = true;
     _tickCounter = 0;
-    _ensurePlayers();
     _handleTick();
     _restartTimer();
   }
@@ -236,6 +237,10 @@ class MetronomeEngine {
   }
 
   void _playSoundForTick({required int beat, required int subTick}) {
+    if (disablePlatformAudio) {
+      return;
+    }
+
     _ClickKind? kind;
     double levelScale = 1;
 
