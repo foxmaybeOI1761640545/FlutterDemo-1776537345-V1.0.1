@@ -4,6 +4,16 @@ void main() {
   runApp(const RainbowToggleApp());
 }
 
+const List<String> _unifiedFontFallback = <String>[
+  "Microsoft YaHei UI",
+  "Microsoft YaHei",
+  "PingFang SC",
+  "Noto Sans CJK SC",
+  "Noto Sans SC",
+  "Source Han Sans SC",
+  "Arial Unicode MS",
+];
+
 class RainbowToggleApp extends StatelessWidget {
   const RainbowToggleApp({super.key});
 
@@ -14,6 +24,15 @@ class RainbowToggleApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            textStyle: const TextStyle(
+              fontFamily: "Segoe UI",
+              fontFamilyFallback: _unifiedFontFallback,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ),
       home: const RainbowTogglePage(),
     );
@@ -148,6 +167,8 @@ class RainbowAnimatedText extends StatelessWidget {
           text,
           textAlign: TextAlign.center,
           style: const TextStyle(
+            fontFamily: "Segoe UI",
+            fontFamilyFallback: _unifiedFontFallback,
             fontSize: 56,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.2,
