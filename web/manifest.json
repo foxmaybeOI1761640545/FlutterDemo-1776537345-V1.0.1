@@ -1,10 +1,10 @@
 {
-  "name": "Flutter Demo",
-  "short_name": "FlutterDemo",
+  "name": "PulseBeat Offline Metronome",
+  "short_name": "PulseBeat",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1976d2",
-  "description": "A Flutter demo with rainbow cycling text.",
+  "background_color": "#070b18",
+  "theme_color": "#2ad8ff",
+  "description": "Offline metronome for practice and rhythm training.",
   "orientation": "portrait-primary"
 }
