@@ -1,3 +1,4 @@
+import "package:flutter/material.dart";
 import "package:flutter_test/flutter_test.dart";
 import "package:shared_preferences/shared_preferences.dart";
 
@@ -12,15 +13,16 @@ void main() {
     await tester.pumpWidget(const PulseBeatApp());
     await tester.pumpAndSettle();
 
-    expect(find.text("节拍器"), findsAtLeastNWidgets(1));
-    expect(find.text("预设"), findsAtLeastNWidgets(1));
-    expect(find.text("设置"), findsAtLeastNWidgets(1));
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byIcon(Icons.speed_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.library_music_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.settings_rounded), findsAtLeastNWidgets(1));
 
-    await tester.tap(find.text("预设").last);
+    await tester.tap(find.byIcon(Icons.library_music_rounded));
     await tester.pumpAndSettle();
     expect(find.text("预设管理"), findsOneWidget);
 
-    await tester.tap(find.text("设置").last);
+    await tester.tap(find.byIcon(Icons.settings_rounded).first);
     await tester.pumpAndSettle();
     expect(find.text("界面与数据"), findsOneWidget);
   });
