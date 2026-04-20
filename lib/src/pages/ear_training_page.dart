@@ -1,6 +1,8 @@
 import "dart:async";
 import "dart:math";
 
+import "package:audioplayers/audioplayers.dart";
+import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 
 enum EarTrainingSpeed {
@@ -47,8 +49,21 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     "La",
     "Ti",
   ];
+  static const Map<String, int> _degreeSemitoneOffsets = <String, int>{
+    "Do": 0,
+    "Re": 2,
+    "Mi": 4,
+    "Fa": 5,
+    "Sol": 7,
+    "La": 9,
+    "Ti": 11,
+  };
+  static const String _noteAssetPath = "audio/beep-normal.wav";
+  static const String _hintAssetPath = "audio/beep-subdivision.wav";
 
   final Random _random = Random();
+  final AudioPlayer _notePlayer = AudioPlayer();
+  final AudioPlayer _hintPlayer = AudioPlayer();
 
   int _currentTab = 0;
   int _questionCount = 10;
@@ -88,9 +103,24 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   _SessionRecord? _latestModeARecord;
   _SessionRecord? _latestModeBRecord;
   final List<_SessionRecord> _history = <_SessionRecord>[];
+  int _audioSequenceToken = 0;
+  Future<void>? _iosAudioContextLoader;
+  bool _iosAudioContextConfigured = false;
+
+  bool get _isIOSPlatform =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_configureAudioPlayers());
+  }
 
   @override
   void dispose() {
+    _cancelAudioSequence();
+    unawaited(_notePlayer.dispose());
+    unawaited(_hintPlayer.dispose());
     _modeATimer?.cancel();
     _modeBFeedbackTimer?.cancel();
     super.dispose();
@@ -108,6 +138,164 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       return null;
     }
     return _modeBQuestions[_modeBIndex];
+  }
+
+  Future<void> _configureAudioPlayers() async {
+    try {
+      await _notePlayer.setReleaseMode(ReleaseMode.stop);
+      await _hintPlayer.setReleaseMode(ReleaseMode.stop);
+      await _ensurePlatformAudioContext();
+    } catch (error) {
+      debugPrint("Ear training audio init failed: $error");
+    }
+  }
+
+  Future<void> _ensurePlatformAudioContext() {
+    if (!_isIOSPlatform || _iosAudioContextConfigured) {
+      return Future<void>.value();
+    }
+    final Future<void>? inFlight = _iosAudioContextLoader;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final Future<void> loader = (() async {
+      try {
+        await AudioPlayer.global.setAudioContext(
+          AudioContextConfig(
+            route: AudioContextConfigRoute.system,
+            focus: AudioContextConfigFocus.gain,
+            respectSilence: false,
+            stayAwake: false,
+          ).build(),
+        );
+        _iosAudioContextConfigured = true;
+      } catch (error) {
+        debugPrint("Ear training iOS audio context setup failed: $error");
+      } finally {
+        _iosAudioContextLoader = null;
+      }
+    })();
+
+    _iosAudioContextLoader = loader;
+    return loader;
+  }
+
+  double _playbackRateForDegree(String degree) {
+    final int semitone = _degreeSemitoneOffsets[degree] ?? 0;
+    return pow(2, semitone / 12).toDouble();
+  }
+
+  int _cancelAudioSequence() {
+    _audioSequenceToken += 1;
+    unawaited(_notePlayer.stop());
+    unawaited(_hintPlayer.stop());
+    return _audioSequenceToken;
+  }
+
+  Future<void> _playAsset(
+    AudioPlayer player, {
+    required String assetPath,
+    required double volume,
+    required double playbackRate,
+  }) async {
+    await _ensurePlatformAudioContext();
+    await player.stop();
+    await player.setPlaybackRate(playbackRate);
+    try {
+      await player.play(
+        AssetSource(assetPath),
+        volume: volume,
+        mode: PlayerMode.lowLatency,
+      );
+    } catch (_) {
+      await player.play(
+        AssetSource(assetPath),
+        volume: volume,
+        mode: PlayerMode.mediaPlayer,
+      );
+    }
+  }
+
+  Future<void> _playDegree(String degree, {double volume = 0.9}) async {
+    try {
+      await _playAsset(
+        _notePlayer,
+        assetPath: _noteAssetPath,
+        volume: volume.clamp(0, 1).toDouble(),
+        playbackRate: _playbackRateForDegree(degree),
+      );
+    } catch (error) {
+      debugPrint("Ear training note playback failed: $error");
+    }
+  }
+
+  Future<void> _playHintSound() async {
+    try {
+      await _playAsset(
+        _hintPlayer,
+        assetPath: _hintAssetPath,
+        volume: 0.78,
+        playbackRate: 1,
+      );
+    } catch (error) {
+      debugPrint("Ear training hint playback failed: $error");
+    }
+  }
+
+  void _playModeAPhaseAudio() {
+    if (!_modeARunning) {
+      return;
+    }
+    final String? degree = _modeACurrentDegree;
+    if (degree == null) {
+      return;
+    }
+
+    switch (_modeAPhase) {
+      case _ModeAPhase.tonic:
+        unawaited(_playDegree("Do"));
+        break;
+      case _ModeAPhase.target:
+        unawaited(_playDegree(degree, volume: 0.94));
+        break;
+      case _ModeAPhase.replay:
+        unawaited(_playDegree(degree, volume: 0.94));
+        break;
+      case _ModeAPhase.think:
+      case _ModeAPhase.answer:
+        break;
+    }
+  }
+
+  Duration get _modeBPromptGap =>
+      _speed == EarTrainingSpeed.slow
+          ? const Duration(milliseconds: 750)
+          : const Duration(milliseconds: 500);
+
+  Future<void> _playModeBPrompt({
+    required String degree,
+    required int token,
+    bool requireModeBRunning = true,
+  }) async {
+    await _playDegree("Do");
+    await Future<void>.delayed(_modeBPromptGap);
+    if (!mounted || token != _audioSequenceToken) {
+      return;
+    }
+    if (requireModeBRunning && !_modeBRunning) {
+      return;
+    }
+    await _playDegree(degree, volume: 0.94);
+  }
+
+  void _playCurrentModeBPrompt() {
+    final String? degree = _modeBCurrentDegree;
+    if (!_modeBRunning || degree == null) {
+      return;
+    }
+    final int token = _cancelAudioSequence();
+    unawaited(_playModeBPrompt(degree: degree, token: token));
   }
 
   List<String> _buildQuestionSet(int count, {List<String>? seedPool}) {
@@ -182,6 +370,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   void _startModeA() {
     _modeATimer?.cancel();
+    _cancelAudioSequence();
     _modeAWatch
       ..reset()
       ..start();
@@ -202,6 +391,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeAAnswer = null;
       _modeAStatus = _modeAPhaseLabel(_modeAQuestions[_modeAIndex]);
     });
+    _playModeAPhaseAudio();
     _scheduleModeAAdvance();
   }
 
@@ -233,6 +423,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         _modeAAnswer = null;
         _modeAStatus = _modeAPhaseLabel(_modeAQuestions[_modeAIndex]);
       });
+      _playModeAPhaseAudio();
       _scheduleModeAAdvance();
       return;
     }
@@ -245,6 +436,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       }
       _modeAStatus = _modeAPhaseLabel(degree);
     });
+    _playModeAPhaseAudio();
     _scheduleModeAAdvance();
   }
 
@@ -283,12 +475,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeAStatus = _modeAPhaseLabel(_modeAQuestions[_modeAIndex]);
       _modeAPaused = false;
     });
+    _playModeAPhaseAudio();
     _scheduleModeAAdvance();
   }
 
   void _exitModeA() {
     _modeATimer?.cancel();
     _modeAWatch.stop();
+    _cancelAudioSequence();
     setState(() {
       _modeARunning = false;
       _modeAPaused = false;
@@ -299,6 +493,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   void _finishModeA() {
     _modeATimer?.cancel();
     _modeAWatch.stop();
+    _cancelAudioSequence();
 
     final _SessionRecord record = _SessionRecord(
       mode: _EarMode.listenAndReveal,
@@ -327,6 +522,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   void _startModeB({List<String>? customQuestions}) {
     _modeBFeedbackTimer?.cancel();
+    _cancelAudioSequence();
     _modeBWatch
       ..reset()
       ..start();
@@ -351,6 +547,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBStatus = "Play tonic + target, waiting answer";
       _modeBWrongCounts.clear();
     });
+    _playCurrentModeBPrompt();
   }
 
   void _submitModeB(String selected) {
@@ -380,6 +577,27 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       }
     });
 
+    _cancelAudioSequence();
+    if (!isCorrect && _errorHintEnabled) {
+      unawaited(_playHintSound());
+    }
+    if (_autoPlayAnswerInModeB) {
+      final Duration delay =
+          (!isCorrect && _errorHintEnabled)
+              ? const Duration(milliseconds: 140)
+              : Duration.zero;
+      final String answerToReplay = answer;
+      unawaited(() async {
+        if (delay > Duration.zero) {
+          await Future<void>.delayed(delay);
+        }
+        if (!mounted || !_modeBRunning) {
+          return;
+        }
+        await _playDegree(answerToReplay, volume: 0.94);
+      }());
+    }
+
     if (_autoAdvanceToNextQuestion) {
       _modeBFeedbackTimer = Timer(
         Duration(milliseconds: isCorrect ? 550 : 850),
@@ -406,11 +624,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBFeedback = null;
       _modeBStatus = "Play tonic + target, waiting answer";
     });
+    _playCurrentModeBPrompt();
   }
 
   void _finishModeB() {
     _modeBFeedbackTimer?.cancel();
     _modeBWatch.stop();
+    _cancelAudioSequence();
 
     final _SessionRecord record = _SessionRecord(
       mode: _EarMode.listenAndChoose,
@@ -440,6 +660,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   void _exitModeB() {
     _modeBFeedbackTimer?.cancel();
     _modeBWatch.stop();
+    _cancelAudioSequence();
     setState(() {
       _modeBRunning = false;
       _modeBLocked = false;
@@ -455,6 +676,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBReplayCount += 1;
       _modeBStatus = "Replayed current prompt";
     });
+    _playCurrentModeBPrompt();
   }
 
   List<String> _buildWrongRedoQuestions() {
@@ -1010,7 +1232,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 },
               ),
               SwitchListTile(
-                title: const Text("Error hint sound (UI placeholder)"),
+                title: const Text("Error hint sound"),
                 value: _errorHintEnabled,
                 onChanged: (bool value) {
                   setState(() {
@@ -1032,12 +1254,20 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
                   onPressed: () {
+                    final int token = _cancelAudioSequence();
+                    unawaited(
+                      _playModeBPrompt(
+                        degree: "Mi",
+                        token: token,
+                        requireModeBRunning: false,
+                      ),
+                    );
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Audio test placeholder")),
+                      const SnackBar(content: Text("Played test prompt: Do -> Mi")),
                     );
                   },
                   icon: const Icon(Icons.volume_up_rounded),
-                  label: const Text("Play test hint"),
+                  label: const Text("Play test prompt"),
                 ),
                 const SizedBox(height: 10),
                 Text(
