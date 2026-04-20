@@ -238,6 +238,34 @@ class _MainPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color titleColor = theme.colorScheme.onSurface.withOpacity(0.74);
+    final bool compactMetrics = MediaQuery.sizeOf(context).width < 600;
+    final List<Widget> metricCards = <Widget>[
+      _MetricCard(
+        title: "速度 BPM",
+        value: config.bpm.toString(),
+        subtitle: tempoTerm(config.bpm),
+        onTap: onRequestBpmInput,
+        width: compactMetrics ? double.infinity : 170,
+      ),
+      _MetricCard(
+        title: "拍号",
+        value: signature.key,
+        subtitle: "每小节 ${signature.numerator} 拍",
+        width: compactMetrics ? double.infinity : 170,
+      ),
+      _MetricCard(
+        title: "切分",
+        value: config.subdivision.label,
+        subtitle: "${config.subdivision.ticksPerBeat} tick/拍",
+        width: compactMetrics ? double.infinity : 170,
+      ),
+      _MetricCard(
+        title: "状态",
+        value: isPlaying ? "播放中" : "已停止",
+        subtitle: isPlaying ? "第 ${(activeBeat < 0 ? 0 : activeBeat) + 1} 拍" : "准备开始",
+        width: compactMetrics ? double.infinity : 170,
+      ),
+    ];
 
     return Card(
       child: Padding(
@@ -256,32 +284,26 @@ class _MainPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                _MetricCard(
-                  title: "速度 BPM",
-                  value: config.bpm.toString(),
-                  subtitle: tempoTerm(config.bpm),
-                  onTap: onRequestBpmInput,
-                ),
-                _MetricCard(
-                  title: "拍号",
-                  value: signature.key,
-                  subtitle: "每小节 ${signature.numerator} 拍",
-                ),
-                _MetricCard(
-                  title: "切分",
-                  value: config.subdivision.label,
-                  subtitle: "${config.subdivision.ticksPerBeat} tick/拍",
-                ),
-                _MetricCard(
-                  title: "状态",
-                  value: isPlaying ? "播放中" : "已停止",
-                  subtitle: isPlaying ? "第 ${(activeBeat < 0 ? 0 : activeBeat) + 1} 拍" : "准备开始",
-                ),
-              ],
+            LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                if (!compactMetrics) {
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: metricCards,
+                  );
+                }
+
+                const double spacing = 8;
+                final double cardWidth = (constraints.maxWidth - spacing) / 2;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: metricCards
+                      .map((Widget card) => SizedBox(width: cardWidth, child: card))
+                      .toList(),
+                );
+              },
             ),
             const SizedBox(height: 18),
             Text("重音编辑", style: theme.textTheme.titleSmall),
@@ -453,12 +475,14 @@ class _MetricCard extends StatelessWidget {
     required this.value,
     required this.subtitle,
     this.onTap,
+    this.width = 170,
   });
 
   final String title;
   final String value;
   final String subtitle;
   final VoidCallback? onTap;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -469,7 +493,7 @@ class _MetricCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Ink(
-          width: 170,
+          width: width,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface.withOpacity(0.55),
