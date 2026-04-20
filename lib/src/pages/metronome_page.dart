@@ -84,20 +84,30 @@ class MetronomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
     final TimeSignatureDefinition signature = resolveSignature(config.timeSignature);
     final bool wideLayout = MediaQuery.sizeOf(context).width >= 980;
+    final bool isDark = theme.brightness == Brightness.dark;
+    final List<Color> backgroundGradient = isDark
+        ? <Color>[
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.11), colorScheme.surface),
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.08), colorScheme.surface),
+            Color.alphaBlend(colorScheme.tertiary.withOpacity(0.08), colorScheme.surface),
+            colorScheme.surface,
+          ]
+        : <Color>[
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.2), colorScheme.surface),
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.12), colorScheme.surface),
+            Color.alphaBlend(colorScheme.tertiary.withOpacity(0.08), colorScheme.surface),
+            colorScheme.surface,
+          ];
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            Color(0xFF14203D),
-            Color(0xFF101E44),
-            Color(0xFF112B52),
-            Color(0xFF3D2B1A),
-          ],
+          colors: backgroundGradient,
           stops: <double>[0, 0.35, 0.72, 1],
         ),
       ),
@@ -602,6 +612,7 @@ class _AccentCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -615,7 +626,7 @@ class _AccentCell extends StatelessWidget {
             border: Border.all(
               width: active ? 1.6 : 1,
               color: active
-                  ? const Color(0xFF2FE8FF)
+                  ? colorScheme.primary
                   : theme.colorScheme.outline.withOpacity(0.35),
             ),
             color: selected ? color.withOpacity(active ? 0.84 : 0.6) : Colors.transparent,

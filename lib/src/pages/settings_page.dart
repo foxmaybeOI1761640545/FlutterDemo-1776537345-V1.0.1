@@ -17,13 +17,26 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
+    final List<Color> backgroundGradient = isDark
+        ? <Color>[
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.1), colorScheme.surface),
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.08), colorScheme.surface),
+            colorScheme.surface,
+          ]
+        : <Color>[
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.18), colorScheme.surface),
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.11), colorScheme.surface),
+            colorScheme.surface,
+          ];
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFF151E37), Color(0xFF222945), Color(0xFF0E1327)],
+          colors: backgroundGradient,
         ),
       ),
       child: SafeArea(
@@ -187,7 +200,7 @@ class SettingsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "About: PulseBeat MVP v2.0.2",
+                          "About: PulseBeat MVP v2.0.6",
                           style: theme.textTheme.bodySmall,
                         ),
                       ],

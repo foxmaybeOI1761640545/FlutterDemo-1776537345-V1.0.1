@@ -19,13 +19,26 @@ class PresetsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
+    final List<Color> backgroundGradient = isDark
+        ? <Color>[
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.09), colorScheme.surface),
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.08), colorScheme.surface),
+            colorScheme.surface,
+          ]
+        : <Color>[
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.2), colorScheme.surface),
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.1), colorScheme.surface),
+            colorScheme.surface,
+          ];
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: <Color>[Color(0xFF101A36), Color(0xFF0F1326)],
+          colors: backgroundGradient,
         ),
       ),
       child: SafeArea(

@@ -939,18 +939,18 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     );
   }
 
-  ButtonStyle _modeBChoiceStyle(String degree) {
+  ButtonStyle _modeBChoiceStyle(ThemeData theme, String degree) {
     final String? answer = _modeBCurrentDegree;
     Color? backgroundColor;
     Color? foregroundColor;
 
     if (_modeBLocked && answer != null) {
       if (degree == answer) {
-        backgroundColor = Colors.green.shade600;
-        foregroundColor = Colors.white;
+        backgroundColor = theme.colorScheme.secondaryContainer;
+        foregroundColor = theme.colorScheme.onSecondaryContainer;
       } else if (degree == _modeBSelected) {
-        backgroundColor = Colors.red.shade600;
-        foregroundColor = Colors.white;
+        backgroundColor = theme.colorScheme.errorContainer;
+        foregroundColor = theme.colorScheme.onErrorContainer;
       }
     }
 
@@ -999,7 +999,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                       width: 92,
                       child: FilledButton(
                         onPressed: _modeBRunning ? () => _submitModeB(degree) : null,
-                        style: _modeBChoiceStyle(degree),
+                        style: _modeBChoiceStyle(theme, degree),
                         child: Text(degree),
                       ),
                     );
@@ -1276,17 +1276,29 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
+    final List<Color> backgroundGradient = isDark
+        ? <Color>[
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.11), colorScheme.surface),
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.08), colorScheme.surface),
+            Color.alphaBlend(colorScheme.tertiary.withOpacity(0.07), colorScheme.surface),
+            colorScheme.surface,
+          ]
+        : <Color>[
+            Color.alphaBlend(colorScheme.secondary.withOpacity(0.21), colorScheme.surface),
+            Color.alphaBlend(colorScheme.primary.withOpacity(0.12), colorScheme.surface),
+            Color.alphaBlend(colorScheme.tertiary.withOpacity(0.08), colorScheme.surface),
+            colorScheme.surface,
+          ];
+
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            Color(0xFF1E2A3E),
-            Color(0xFF192537),
-            Color(0xFF0E1C2E),
-            Color(0xFF0C2032),
-          ],
+          colors: backgroundGradient,
         ),
       ),
       child: SafeArea(

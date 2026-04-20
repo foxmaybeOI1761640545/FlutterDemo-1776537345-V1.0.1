@@ -125,7 +125,7 @@ extension AccentLevelExtension on AccentLevel {
 
   Color color(ThemeData theme) {
     return switch (this) {
-      AccentLevel.strong => const Color(0xFF2FE8FF),
+      AccentLevel.strong => theme.colorScheme.primary,
       AccentLevel.normal => theme.colorScheme.secondary,
       AccentLevel.weak => theme.colorScheme.tertiary,
       AccentLevel.mute => theme.colorScheme.outline,
