@@ -27,7 +27,14 @@ Flutter-based offline metronome MVP for Web, Windows, and mobile (Android/iOS).
 - Offline-first: no network or account dependency.
 - Persistence: `shared_preferences`.
 - Metronome click audio: generated local WAV samples + `audioplayers`.
+- Ear training notes: fixed-pitch WAV assets (`assets/audio/ear-note-*.wav`) generated with 12-TET (`A4=440Hz`) to keep intonation stable across platforms.
 - Single Flutter codebase used across Web/Windows/mobile.
+
+## Ear Training Pitch Asset Tool
+
+Use the local Python tool to regenerate and strictly verify note frequencies:
+
+- `python tools/ear_training_note_assets.py --generate --verify --max-cents 1.0`
 
 ## Project Structure
 

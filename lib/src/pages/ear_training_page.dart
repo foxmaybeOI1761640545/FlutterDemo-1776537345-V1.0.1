@@ -1,5 +1,4 @@
 import "dart:async";
-import "dart:math";
 
 import "package:audioplayers/audioplayers.dart";
 import "package:flutter/foundation.dart";
@@ -49,16 +48,16 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     "La",
     "Ti",
   ];
-  static const Map<String, int> _degreeSemitoneOffsets = <String, int>{
-    "Do": 0,
-    "Re": 2,
-    "Mi": 4,
-    "Fa": 5,
-    "Sol": 7,
-    "La": 9,
-    "Ti": 11,
+  static const Map<String, String> _degreeNoteAssetPaths = <String, String>{
+    "Do": "audio/ear-note-do.wav",
+    "Re": "audio/ear-note-re.wav",
+    "Mi": "audio/ear-note-mi.wav",
+    "Fa": "audio/ear-note-fa.wav",
+    "Sol": "audio/ear-note-sol.wav",
+    "La": "audio/ear-note-la.wav",
+    "Ti": "audio/ear-note-ti.wav",
   };
-  static const String _noteAssetPath = "audio/beep-normal.wav";
+  static const String _defaultNoteAssetPath = "audio/ear-note-do.wav";
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
 
   final Random _random = Random();
@@ -181,11 +180,6 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return loader;
   }
 
-  double _playbackRateForDegree(String degree) {
-    final int semitone = _degreeSemitoneOffsets[degree] ?? 0;
-    return pow(2, semitone / 12).toDouble();
-  }
-
   int _cancelAudioSequence() {
     _audioSequenceToken += 1;
     unawaited(_notePlayer.stop());
@@ -197,11 +191,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     AudioPlayer player, {
     required String assetPath,
     required double volume,
-    required double playbackRate,
   }) async {
     await _ensurePlatformAudioContext();
     await player.stop();
-    await player.setPlaybackRate(playbackRate);
     try {
       await player.play(
         AssetSource(assetPath),
@@ -218,12 +210,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   Future<void> _playDegree(String degree, {double volume = 0.9}) async {
+    final String assetPath = _degreeNoteAssetPaths[degree] ?? _defaultNoteAssetPath;
     try {
       await _playAsset(
         _notePlayer,
-        assetPath: _noteAssetPath,
+        assetPath: assetPath,
         volume: volume.clamp(0, 1).toDouble(),
-        playbackRate: _playbackRateForDegree(degree),
       );
     } catch (error) {
       debugPrint("Ear training note playback failed: $error");
@@ -236,7 +228,6 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         _hintPlayer,
         assetPath: _hintAssetPath,
         volume: 0.78,
-        playbackRate: 1,
       );
     } catch (error) {
       debugPrint("Ear training hint playback failed: $error");

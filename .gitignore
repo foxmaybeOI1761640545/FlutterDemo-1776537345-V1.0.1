@@ -15,6 +15,7 @@ docs/01-FlutterRemoteDevFlow
 .packages
 build/
 coverage/
-tools/
+tools/*
+!tools/ear_training_note_assets.py
 ios/Flutter/.last_build_id
 *.log
