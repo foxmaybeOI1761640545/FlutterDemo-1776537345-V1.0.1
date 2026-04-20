@@ -146,6 +146,7 @@ class MetronomePage extends StatelessWidget {
                             onTapTempo: onTapTempo,
                             onBpmMinus: onBpmMinus,
                             onBpmPlus: onBpmPlus,
+                            onRequestBpmInput: () => _showBpmInputDialog(context),
                           ),
                         ),
                       ],
@@ -181,6 +182,7 @@ class MetronomePage extends StatelessWidget {
                           onTapTempo: onTapTempo,
                           onBpmMinus: onBpmMinus,
                           onBpmPlus: onBpmPlus,
+                          onRequestBpmInput: () => _showBpmInputDialog(context),
                         ),
                       ],
                     ),
@@ -363,6 +365,15 @@ class _MainPanel extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onRequestBpmInput,
+                icon: const Icon(Icons.keyboard_rounded),
+                label: Text("输入 BPM (${config.bpm})"),
+              ),
+            ),
           ],
         ),
       ),
@@ -379,6 +390,7 @@ class _SidePanel extends StatelessWidget {
     required this.onTapTempo,
     required this.onBpmMinus,
     required this.onBpmPlus,
+    required this.onRequestBpmInput,
   });
 
   final MetronomeConfig config;
@@ -388,6 +400,7 @@ class _SidePanel extends StatelessWidget {
   final VoidCallback onTapTempo;
   final VoidCallback onBpmMinus;
   final VoidCallback onBpmPlus;
+  final VoidCallback onRequestBpmInput;
 
   @override
   Widget build(BuildContext context) {
@@ -400,10 +413,28 @@ class _SidePanel extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: <Widget>[
-                Expanded(child: FilledButton.tonal(onPressed: onBpmMinus, child: const Text("-1 BPM"))),
+                Expanded(
+                  child: RepeatActionFilledButton(
+                    onPressed: onBpmMinus,
+                    tooltip: "按住持续减速",
+                    child: const Text("-1 BPM"),
+                  ),
+                ),
                 const SizedBox(width: 8),
-                Expanded(child: FilledButton.tonal(onPressed: onBpmPlus, child: const Text("+1 BPM"))),
+                Expanded(
+                  child: RepeatActionFilledButton(
+                    onPressed: onBpmPlus,
+                    tooltip: "按住持续加速",
+                    child: const Text("+1 BPM"),
+                  ),
+                ),
               ],
+            ),
+            const SizedBox(height: 8),
+            FilledButton.tonalIcon(
+              onPressed: onRequestBpmInput,
+              icon: const Icon(Icons.keyboard_rounded),
+              label: Text("输入 BPM (${config.bpm})"),
             ),
             const SizedBox(height: 8),
             FilledButton.tonal(onPressed: onTapTempo, child: Text(tapCount >= 4 ? "TAP $tapCount" : "TAP")),
@@ -482,6 +513,7 @@ class _AccentMatrix extends StatelessWidget {
     final List<AccentLevel> rowOrder = <AccentLevel>[
       AccentLevel.strong,
       AccentLevel.normal,
+      AccentLevel.weak,
       AccentLevel.mute,
     ];
 

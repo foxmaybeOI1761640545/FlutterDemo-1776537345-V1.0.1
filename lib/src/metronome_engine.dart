@@ -1,6 +1,7 @@
 import "dart:async";
 
 import "package:audioplayers/audioplayers.dart";
+import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 
 import "models.dart";
@@ -61,6 +62,27 @@ class MetronomeEngine {
 
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
+  bool get _isIOSPlatform =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  double _masterVolumeForPlatform() {
+    if (!_isIOSPlatform) {
+      return _volume;
+    }
+    // Compensate iOS output so it is closer to Android loudness at the same slider value.
+    return (_volume * 1.12).clamp(0, 1).toDouble();
+  }
+
+  double _platformLevelGain(_ClickKind kind) {
+    if (!_isIOSPlatform) {
+      return 1;
+    }
+    return switch (kind) {
+      _ClickKind.strong => 1,
+      _ClickKind.normal => 1.18,
+      _ClickKind.subdivision => 1.32,
+    };
+  }
 
   List<AudioPlayer> _ensurePlayers() {
     final List<AudioPlayer>? existing = _players;
@@ -176,6 +198,9 @@ class MetronomeEngine {
         case AccentLevel.normal:
           kind = _ClickKind.normal;
           levelScale = 0.85;
+        case AccentLevel.weak:
+          kind = _ClickKind.normal;
+          levelScale = 0.62;
         case AccentLevel.mute:
           kind = null;
       }
@@ -192,11 +217,16 @@ class MetronomeEngine {
     final List<AudioPlayer> players = _ensurePlayers();
     final AudioPlayer player = players[_playerCursor];
     _playerCursor = (_playerCursor + 1) % players.length;
+    final double effectiveVolume = (_masterVolumeForPlatform() *
+            levelScale *
+            _platformLevelGain(kind))
+        .clamp(0, 1)
+        .toDouble();
 
     unawaited(
       player.play(
         AssetSource(assetPath),
-        volume: (_volume * levelScale).clamp(0, 1).toDouble(),
+        volume: effectiveVolume,
       ).catchError((Object error) {
         debugPrint("Audio playback failed for $assetPath: $error");
       }),

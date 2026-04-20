@@ -91,6 +91,7 @@ extension SubdivisionExtension on Subdivision {
 enum AccentLevel {
   strong,
   normal,
+  weak,
   mute,
 }
 
@@ -98,7 +99,8 @@ extension AccentLevelExtension on AccentLevel {
   String get label {
     return switch (this) {
       AccentLevel.strong => "强拍",
-      AccentLevel.normal => "普通",
+      AccentLevel.normal => "中拍",
+      AccentLevel.weak => "弱拍",
       AccentLevel.mute => "静音",
     };
   }
@@ -107,6 +109,7 @@ extension AccentLevelExtension on AccentLevel {
     return switch (this) {
       AccentLevel.strong => "强",
       AccentLevel.normal => "中",
+      AccentLevel.weak => "弱",
       AccentLevel.mute => "静",
     };
   }
@@ -115,6 +118,7 @@ extension AccentLevelExtension on AccentLevel {
     return switch (this) {
       AccentLevel.strong => "strong",
       AccentLevel.normal => "normal",
+      AccentLevel.weak => "weak",
       AccentLevel.mute => "mute",
     };
   }
@@ -123,6 +127,7 @@ extension AccentLevelExtension on AccentLevel {
     return switch (this) {
       AccentLevel.strong => const Color(0xFF2FE8FF),
       AccentLevel.normal => theme.colorScheme.secondary,
+      AccentLevel.weak => theme.colorScheme.tertiary,
       AccentLevel.mute => theme.colorScheme.outline,
     };
   }
