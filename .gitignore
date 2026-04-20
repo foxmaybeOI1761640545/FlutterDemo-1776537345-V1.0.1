@@ -15,5 +15,6 @@ docs/01-FlutterRemoteDevFlow
 .packages
 build/
 coverage/
+tools/
 ios/Flutter/.last_build_id
 *.log
