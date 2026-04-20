@@ -67,6 +67,8 @@ class MetronomeEngine {
 
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
+  bool get _isAndroidPlatform =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get _isIOSPlatform =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
@@ -96,10 +98,15 @@ class MetronomeEngine {
       return existing;
     }
 
+    final int poolSize = _isAndroidPlatform ? 8 : 4;
     final List<AudioPlayer> created =
-        List<AudioPlayer>.generate(4, (int _) => AudioPlayer());
+        List<AudioPlayer>.generate(poolSize, (int _) => AudioPlayer());
     for (final AudioPlayer player in created) {
-      unawaited(player.setReleaseMode(ReleaseMode.stop));
+      if (_isAndroidPlatform) {
+        unawaited(player.setPlayerMode(PlayerMode.lowLatency));
+      } else {
+        unawaited(player.setReleaseMode(ReleaseMode.stop));
+      }
     }
     _players = created;
     return created;
@@ -131,6 +138,7 @@ class MetronomeEngine {
     }
     _isPlaying = true;
     _tickCounter = 0;
+    _playerCursor = 0;
     if (!disablePlatformAudio) {
       _ensurePlayers();
       unawaited(_warmUpTone(_tone));
@@ -229,11 +237,18 @@ class MetronomeEngine {
         .clamp(0, 1)
         .toDouble();
 
+    final Future<void> playFuture = _isAndroidPlatform
+        ? player.play(
+            AssetSource(assetPath),
+            volume: effectiveVolume,
+            mode: PlayerMode.lowLatency,
+          )
+        : player.play(
+            AssetSource(assetPath),
+            volume: effectiveVolume,
+          );
     unawaited(
-      player.play(
-        AssetSource(assetPath),
-        volume: effectiveVolume,
-      ).catchError((Object error) {
+      playFuture.catchError((Object error) {
         debugPrint("Audio playback failed for $assetPath: $error");
       }),
     );
@@ -248,13 +263,30 @@ class MetronomeEngine {
     AudioPlayer? warmupPlayer;
     try {
       warmupPlayer = AudioPlayer();
-      await warmupPlayer.setReleaseMode(ReleaseMode.stop);
+      if (_isAndroidPlatform) {
+        await warmupPlayer.setPlayerMode(PlayerMode.lowLatency);
+      } else {
+        await warmupPlayer.setReleaseMode(ReleaseMode.stop);
+      }
 
       final Map<_ClickKind, String> paths =
           _toneAssetPaths[tone] ?? _toneAssetPaths[MetronomeTone.digital]!;
       for (final String assetPath in paths.values.toSet()) {
-        await warmupPlayer.play(AssetSource(assetPath), volume: 0);
-        await warmupPlayer.stop();
+        if (_isAndroidPlatform) {
+          await warmupPlayer.play(
+            AssetSource(assetPath),
+            volume: 0,
+            mode: PlayerMode.lowLatency,
+          );
+        } else {
+          await warmupPlayer.play(
+            AssetSource(assetPath),
+            volume: 0,
+          );
+        }
+        if (!_isAndroidPlatform) {
+          await warmupPlayer.stop();
+        }
       }
 
       _warmedTones.add(tone);
