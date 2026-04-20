@@ -42,3 +42,7 @@ Flutter-based offline metronome MVP for Web, Windows, and mobile (Android/iOS).
 ## CI / Multi-platform Packaging
 
 Repository workflows already include build/release pipelines for Web, Windows, Android, iOS, and macOS under `.github/workflows/`.
+
+For Android upgrade testing, see the stable signing guide:
+
+- `docs/02-android-signing-stable-update.md`

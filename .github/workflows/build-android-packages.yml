@@ -68,6 +68,27 @@ jobs:
             flutter create --platforms=android .
           fi
 
+      - name: Restore fixed Android debug keystore
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "${ANDROID_DEBUG_KEYSTORE_BASE64}" ]; then
+            echo "Missing required repository secret: ANDROID_DEBUG_KEYSTORE_BASE64"
+            echo "Run workflow 'bootstrap-android-debug-keystore' once, then add this secret."
+            exit 1
+          fi
+
+          mkdir -p "${HOME}/.android"
+          printf '%s' "${ANDROID_DEBUG_KEYSTORE_BASE64}" | base64 --decode > "${HOME}/.android/debug.keystore"
+
+      - name: Verify signing fingerprint
+        run: |
+          keytool -list -v \
+            -keystore "${HOME}/.android/debug.keystore" \
+            -alias androiddebugkey \
+            -storepass android \
+            -keypass android | grep -E 'Alias name:|SHA1:|SHA256:'
+
       - name: Install dependencies
         run: flutter pub get
 
