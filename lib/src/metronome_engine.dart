@@ -56,6 +56,8 @@ class MetronomeEngine {
   MetronomeConfig _config = MetronomeConfig.fromSettings(AppSettings.defaults());
   double _volume = 0.8;
   MetronomeTone _tone = MetronomeTone.digital;
+  final Set<MetronomeTone> _warmedTones = <MetronomeTone>{};
+  final Set<MetronomeTone> _warmingTones = <MetronomeTone>{};
 
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
@@ -76,15 +78,23 @@ class MetronomeEngine {
   }
 
   void updateConfig(MetronomeConfig config) {
-    _config = config.normalized();
-    if (_isPlaying) {
+    final MetronomeConfig next = config.normalized();
+    final bool needsTimerRestart =
+        next.bpm != _config.bpm || next.subdivision != _config.subdivision;
+    _config = next;
+    if (_isPlaying && needsTimerRestart) {
       _restartTimer();
     }
   }
 
   void updateAudio({required double volume, required MetronomeTone tone}) {
     _volume = volume.clamp(0, 1).toDouble();
-    _tone = tone;
+    final MetronomeTone normalizedTone = tone;
+    final bool toneChanged = normalizedTone != _tone;
+    _tone = normalizedTone;
+    if (!disablePlatformAudio && (toneChanged || !_warmedTones.contains(_tone))) {
+      unawaited(_warmUpTone(_tone));
+    }
   }
 
   void start() {
@@ -95,6 +105,7 @@ class MetronomeEngine {
     _tickCounter = 0;
     if (!disablePlatformAudio) {
       _ensurePlayers();
+      unawaited(_warmUpTone(_tone));
     }
     _handleTick();
     _restartTimer();
@@ -190,5 +201,34 @@ class MetronomeEngine {
         debugPrint("Audio playback failed for $assetPath: $error");
       }),
     );
+  }
+
+  Future<void> _warmUpTone(MetronomeTone tone) async {
+    if (_warmedTones.contains(tone) || _warmingTones.contains(tone)) {
+      return;
+    }
+    _warmingTones.add(tone);
+
+    AudioPlayer? warmupPlayer;
+    try {
+      warmupPlayer = AudioPlayer();
+      await warmupPlayer.setReleaseMode(ReleaseMode.stop);
+
+      final Map<_ClickKind, String> paths =
+          _toneAssetPaths[tone] ?? _toneAssetPaths[MetronomeTone.digital]!;
+      for (final String assetPath in paths.values.toSet()) {
+        await warmupPlayer.play(AssetSource(assetPath), volume: 0);
+        await warmupPlayer.stop();
+      }
+
+      _warmedTones.add(tone);
+    } catch (error) {
+      debugPrint("Audio warm-up failed for ${tone.storageValue}: $error");
+    } finally {
+      _warmingTones.remove(tone);
+      if (warmupPlayer != null) {
+        await warmupPlayer.dispose();
+      }
+    }
   }
 }
