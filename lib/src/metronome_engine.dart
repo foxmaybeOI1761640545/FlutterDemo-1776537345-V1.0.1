@@ -1,6 +1,4 @@
 import "dart:async";
-import "dart:math" as math;
-import "dart:typed_data";
 
 import "package:audioplayers/audioplayers.dart";
 import "package:flutter/material.dart";
@@ -13,116 +11,29 @@ enum _ClickKind {
   subdivision,
 }
 
-class _ToneProfile {
-  const _ToneProfile({
-    required this.strongFrequencyHz,
-    required this.normalFrequencyHz,
-    required this.subdivisionFrequencyHz,
-  });
-
-  final double strongFrequencyHz;
-  final double normalFrequencyHz;
-  final double subdivisionFrequencyHz;
-}
-
-const Map<MetronomeTone, _ToneProfile> _toneProfiles = <MetronomeTone, _ToneProfile>{
-  MetronomeTone.digital: _ToneProfile(
-    strongFrequencyHz: 1880,
-    normalFrequencyHz: 1340,
-    subdivisionFrequencyHz: 960,
-  ),
-  MetronomeTone.wood: _ToneProfile(
-    strongFrequencyHz: 660,
-    normalFrequencyHz: 470,
-    subdivisionFrequencyHz: 350,
-  ),
-  MetronomeTone.beep: _ToneProfile(
-    strongFrequencyHz: 1120,
-    normalFrequencyHz: 840,
-    subdivisionFrequencyHz: 640,
-  ),
+const Map<MetronomeTone, Map<_ClickKind, String>> _toneAssetPaths =
+    <MetronomeTone, Map<_ClickKind, String>>{
+  MetronomeTone.digital: <_ClickKind, String>{
+    _ClickKind.strong: "audio/digital-strong.wav",
+    _ClickKind.normal: "audio/digital-normal.wav",
+    _ClickKind.subdivision: "audio/digital-subdivision.wav",
+  },
+  MetronomeTone.wood: <_ClickKind, String>{
+    _ClickKind.strong: "audio/wood-strong.wav",
+    _ClickKind.normal: "audio/wood-normal.wav",
+    _ClickKind.subdivision: "audio/wood-subdivision.wav",
+  },
+  MetronomeTone.beep: <_ClickKind, String>{
+    _ClickKind.strong: "audio/beep-strong.wav",
+    _ClickKind.normal: "audio/beep-normal.wav",
+    _ClickKind.subdivision: "audio/beep-subdivision.wav",
+  },
 };
 
-class _ClickSoundCache {
-  final Map<String, Uint8List> _cache = <String, Uint8List>{};
-
-  Uint8List resolveBytes({required MetronomeTone tone, required _ClickKind kind}) {
-    final String key = "${tone.storageValue}:${kind.name}";
-    final Uint8List? cached = _cache[key];
-    if (cached != null) {
-      return cached;
-    }
-
-    final _ToneProfile profile = _toneProfiles[tone] ?? _toneProfiles[MetronomeTone.digital]!;
-    late final double frequency;
-    late final int durationMs;
-    late final double gain;
-
-    switch (kind) {
-      case _ClickKind.strong:
-        frequency = profile.strongFrequencyHz;
-        durationMs = 34;
-        gain = 0.9;
-      case _ClickKind.normal:
-        frequency = profile.normalFrequencyHz;
-        durationMs = 28;
-        gain = 0.75;
-      case _ClickKind.subdivision:
-        frequency = profile.subdivisionFrequencyHz;
-        durationMs = 22;
-        gain = 0.56;
-    }
-
-    final Uint8List bytes = _buildClickWav(
-      frequencyHz: frequency,
-      durationMs: durationMs,
-      gain: gain,
-    );
-    _cache[key] = bytes;
-    return bytes;
-  }
-
-  Uint8List _buildClickWav({
-    required double frequencyHz,
-    required int durationMs,
-    required double gain,
-  }) {
-    const int sampleRate = 44100;
-    final int totalSamples = (sampleRate * durationMs / 1000).round();
-    final int dataLength = totalSamples * 2;
-    final ByteData bytes = ByteData(44 + dataLength);
-
-    void writeString(int offset, String value) {
-      for (int i = 0; i < value.length; i++) {
-        bytes.setUint8(offset + i, value.codeUnitAt(i));
-      }
-    }
-
-    writeString(0, "RIFF");
-    bytes.setUint32(4, 36 + dataLength, Endian.little);
-    writeString(8, "WAVE");
-    writeString(12, "fmt ");
-    bytes.setUint32(16, 16, Endian.little);
-    bytes.setUint16(20, 1, Endian.little);
-    bytes.setUint16(22, 1, Endian.little);
-    bytes.setUint32(24, sampleRate, Endian.little);
-    bytes.setUint32(28, sampleRate * 2, Endian.little);
-    bytes.setUint16(32, 2, Endian.little);
-    bytes.setUint16(34, 16, Endian.little);
-    writeString(36, "data");
-    bytes.setUint32(40, dataLength, Endian.little);
-
-    for (int i = 0; i < totalSamples; i++) {
-      final double time = i / sampleRate;
-      final double phase = 2 * math.pi * frequencyHz * time;
-      final double decay = math.exp(-7.5 * i / totalSamples);
-      final double wave = math.sin(phase) * decay * gain;
-      final int sample = (wave * 32767).round().clamp(-32768, 32767).toInt();
-      bytes.setInt16(44 + i * 2, sample, Endian.little);
-    }
-
-    return bytes.buffer.asUint8List();
-  }
+String _resolveSoundAsset(MetronomeTone tone, _ClickKind kind) {
+  final Map<_ClickKind, String> byKind =
+      _toneAssetPaths[tone] ?? _toneAssetPaths[MetronomeTone.digital]!;
+  return byKind[kind] ?? byKind[_ClickKind.normal]!;
 }
 
 class MetronomeEngine {
@@ -137,7 +48,6 @@ class MetronomeEngine {
   final VoidCallback onStop;
 
   List<AudioPlayer>? _players;
-  final _ClickSoundCache _soundCache = _ClickSoundCache();
 
   Timer? _timer;
   int _tickCounter = 0;
@@ -160,7 +70,6 @@ class MetronomeEngine {
         List<AudioPlayer>.generate(4, (int _) => AudioPlayer());
     for (final AudioPlayer player in created) {
       unawaited(player.setReleaseMode(ReleaseMode.stop));
-      unawaited(player.setPlayerMode(PlayerMode.lowLatency));
     }
     _players = created;
     return created;
@@ -184,6 +93,9 @@ class MetronomeEngine {
     }
     _isPlaying = true;
     _tickCounter = 0;
+    if (!disablePlatformAudio) {
+      _ensurePlayers();
+    }
     _handleTick();
     _restartTimer();
   }
@@ -237,7 +149,7 @@ class MetronomeEngine {
   }
 
   void _playSoundForTick({required int beat, required int subTick}) {
-    if (disablePlatformAudio) {
+    if (disablePlatformAudio || _volume <= 0) {
       return;
     }
 
@@ -265,17 +177,18 @@ class MetronomeEngine {
       return;
     }
 
-    final Uint8List bytes = _soundCache.resolveBytes(tone: _tone, kind: kind);
+    final String assetPath = _resolveSoundAsset(_tone, kind);
     final List<AudioPlayer> players = _ensurePlayers();
-    _playerCursor = (_playerCursor + 1) % players.length;
     final AudioPlayer player = players[_playerCursor];
+    _playerCursor = (_playerCursor + 1) % players.length;
 
-    unawaited(player.stop());
     unawaited(
       player.play(
-        BytesSource(bytes),
+        AssetSource(assetPath),
         volume: (_volume * levelScale).clamp(0, 1).toDouble(),
-      ),
+      ).catchError((Object error) {
+        debugPrint("Audio playback failed for $assetPath: $error");
+      }),
     );
   }
 }

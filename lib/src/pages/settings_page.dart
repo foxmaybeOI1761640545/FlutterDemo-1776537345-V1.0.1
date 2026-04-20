@@ -187,7 +187,7 @@ class SettingsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "关于应用：PulseBeat MVP v1.0.3",
+                          "关于应用：PulseBeat MVP v1.0.5",
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
