@@ -228,7 +228,7 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
           fontWeight: FontWeight.w600,
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
