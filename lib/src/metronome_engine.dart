@@ -53,17 +53,21 @@ class MetronomeEngine {
   final void Function(int beat, int subTick) onTick;
   final VoidCallback onStop;
 
-  List<AudioPlayer>? _players;
+  final Map<String, AudioPool> _pools = <String, AudioPool>{};
+  final Map<String, Future<AudioPool>> _poolLoaders = <String, Future<AudioPool>>{};
+  final Set<Future<void> Function()> _pendingLowLatencyStops =
+      <Future<void> Function()>{};
+  final Set<Timer> _activeLowLatencyStopTimers = <Timer>{};
 
   Timer? _timer;
   int _tickCounter = 0;
-  int _playerCursor = 0;
 
   MetronomeConfig _config = MetronomeConfig.fromSettings(AppSettings.defaults());
   double _volume = 0.8;
   MetronomeTone _tone = MetronomeTone.digital;
   final Set<MetronomeTone> _warmedTones = <MetronomeTone>{};
   final Set<MetronomeTone> _warmingTones = <MetronomeTone>{};
+  bool _isDisposed = false;
 
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
@@ -92,27 +96,65 @@ class MetronomeEngine {
     };
   }
 
-  List<AudioPlayer> _ensurePlayers() {
-    final List<AudioPlayer>? existing = _players;
-    if (existing != null) {
-      return existing;
+  PlayerMode get _poolPlayerMode =>
+      _isAndroidPlatform ? PlayerMode.lowLatency : PlayerMode.mediaPlayer;
+
+  int get _poolMinPlayers => _isAndroidPlatform ? 4 : 2;
+
+  int get _poolMaxPlayers => _isAndroidPlatform ? 24 : 8;
+
+  Duration _lowLatencyRecycleDelay(_ClickKind kind) {
+    final int clipMs = switch (kind) {
+      _ClickKind.strong => 34,
+      _ClickKind.normal => 28,
+      _ClickKind.weak => 22,
+      _ClickKind.subdivision => 22,
+    };
+    return Duration(milliseconds: clipMs + 12);
+  }
+
+  Future<AudioPool> _ensurePool(String assetPath) {
+    if (_isDisposed) {
+      return Future<AudioPool>.error(
+        StateError("MetronomeEngine has been disposed."),
+      );
     }
 
-    final int poolSize = _isAndroidPlatform ? 8 : 4;
-    final List<AudioPlayer> created =
-        List<AudioPlayer>.generate(poolSize, (int _) => AudioPlayer());
-    for (final AudioPlayer player in created) {
-      if (_isAndroidPlatform) {
-        unawaited(player.setPlayerMode(PlayerMode.lowLatency));
-      } else {
-        unawaited(player.setReleaseMode(ReleaseMode.stop));
-      }
+    final AudioPool? existing = _pools[assetPath];
+    if (existing != null) {
+      return Future<AudioPool>.value(existing);
     }
-    _players = created;
-    return created;
+
+    final Future<AudioPool>? existingLoader = _poolLoaders[assetPath];
+    if (existingLoader != null) {
+      return existingLoader;
+    }
+
+    final Future<AudioPool> loader = (() async {
+      final AudioPool pool = await AudioPool.createFromAsset(
+        path: assetPath,
+        minPlayers: _poolMinPlayers,
+        maxPlayers: _poolMaxPlayers,
+        playerMode: _poolPlayerMode,
+      );
+      if (_isDisposed) {
+        await pool.dispose();
+        throw StateError("MetronomeEngine has been disposed.");
+      }
+      _pools[assetPath] = pool;
+      return pool;
+    })().whenComplete(() {
+      _poolLoaders.remove(assetPath);
+    });
+
+    _poolLoaders[assetPath] = loader;
+    return loader;
   }
 
   void updateConfig(MetronomeConfig config) {
+    if (_isDisposed) {
+      return;
+    }
     final MetronomeConfig next = config.normalized();
     final bool needsTimerRestart =
         next.bpm != _config.bpm || next.subdivision != _config.subdivision;
@@ -123,6 +165,9 @@ class MetronomeEngine {
   }
 
   void updateAudio({required double volume, required MetronomeTone tone}) {
+    if (_isDisposed) {
+      return;
+    }
     _volume = volume.clamp(0, 1).toDouble();
     final MetronomeTone normalizedTone = tone;
     final bool toneChanged = normalizedTone != _tone;
@@ -133,14 +178,12 @@ class MetronomeEngine {
   }
 
   void start() {
-    if (_isPlaying) {
+    if (_isDisposed || _isPlaying) {
       return;
     }
     _isPlaying = true;
     _tickCounter = 0;
-    _playerCursor = 0;
     if (!disablePlatformAudio) {
-      _ensurePlayers();
       unawaited(_warmUpTone(_tone));
     }
     _handleTick();
@@ -148,7 +191,7 @@ class MetronomeEngine {
   }
 
   void stop() {
-    if (!_isPlaying) {
+    if (_isDisposed || !_isPlaying) {
       return;
     }
 
@@ -156,19 +199,42 @@ class MetronomeEngine {
     _timer = null;
     _isPlaying = false;
 
-    for (final AudioPlayer player in _players ?? const <AudioPlayer>[]) {
-      unawaited(player.stop());
+    for (final Timer recycleTimer in _activeLowLatencyStopTimers.toList()) {
+      recycleTimer.cancel();
     }
+    _activeLowLatencyStopTimers.clear();
+
+    for (final Future<void> Function() stopFn in _pendingLowLatencyStops.toList()) {
+      unawaited(_invokeLowLatencyStop(stopFn));
+    }
+    _pendingLowLatencyStops.clear();
 
     onStop();
   }
 
   void dispose() {
-    stop();
-    for (final AudioPlayer player in _players ?? const <AudioPlayer>[]) {
-      unawaited(player.dispose());
+    if (_isDisposed) {
+      return;
     }
-    _players = null;
+    stop();
+    _isDisposed = true;
+
+    _timer?.cancel();
+    _timer = null;
+
+    for (final Timer recycleTimer in _activeLowLatencyStopTimers.toList()) {
+      recycleTimer.cancel();
+    }
+    _activeLowLatencyStopTimers.clear();
+    _pendingLowLatencyStops.clear();
+
+    for (final AudioPool pool in _pools.values.toList()) {
+      unawaited(pool.dispose());
+    }
+    _pools.clear();
+    _poolLoaders.clear();
+    _warmedTones.clear();
+    _warmingTones.clear();
   }
 
   void _restartTimer() {
@@ -228,75 +294,83 @@ class MetronomeEngine {
     }
 
     final String assetPath = _resolveSoundAsset(_tone, kind);
-    final List<AudioPlayer> players = _ensurePlayers();
-    final AudioPlayer player = players[_playerCursor];
-    _playerCursor = (_playerCursor + 1) % players.length;
     final double effectiveVolume = (_masterVolumeForPlatform() *
             levelScale *
             _platformLevelGain(kind))
         .clamp(0, 1)
         .toDouble();
 
-    final Future<void> playFuture = _isAndroidPlatform
-        ? player.play(
-            AssetSource(assetPath),
-            volume: effectiveVolume,
-            mode: PlayerMode.lowLatency,
-          )
-        : player.play(
-            AssetSource(assetPath),
-            volume: effectiveVolume,
-          );
     unawaited(
-      playFuture.catchError((Object error) {
-        debugPrint("Audio playback failed for $assetPath: $error");
-      }),
+      _playAsset(
+        assetPath: assetPath,
+        kind: kind,
+        volume: effectiveVolume,
+      ),
     );
   }
 
+  Future<void> _playAsset({
+    required String assetPath,
+    required _ClickKind kind,
+    required double volume,
+  }) async {
+    if (_isDisposed || !_isPlaying) {
+      return;
+    }
+
+    try {
+      final AudioPool pool = await _ensurePool(assetPath);
+      if (_isDisposed || !_isPlaying) {
+        return;
+      }
+
+      final Future<void> Function() stopFn = await pool.start(volume: volume);
+      if (_poolPlayerMode != PlayerMode.lowLatency) {
+        return;
+      }
+
+      _pendingLowLatencyStops.add(stopFn);
+      late final Timer recycleTimer;
+      recycleTimer = Timer(_lowLatencyRecycleDelay(kind), () {
+        _activeLowLatencyStopTimers.remove(recycleTimer);
+        if (!_pendingLowLatencyStops.remove(stopFn)) {
+          return;
+        }
+        unawaited(_invokeLowLatencyStop(stopFn));
+      });
+      _activeLowLatencyStopTimers.add(recycleTimer);
+    } catch (error) {
+      debugPrint("Audio playback failed for $assetPath: $error");
+    }
+  }
+
+  Future<void> _invokeLowLatencyStop(Future<void> Function() stopFn) async {
+    try {
+      await stopFn();
+    } catch (error) {
+      debugPrint("Audio stop failed: $error");
+    }
+  }
+
   Future<void> _warmUpTone(MetronomeTone tone) async {
-    if (_warmedTones.contains(tone) || _warmingTones.contains(tone)) {
+    if (_isDisposed || _warmedTones.contains(tone) || _warmingTones.contains(tone)) {
       return;
     }
     _warmingTones.add(tone);
 
-    AudioPlayer? warmupPlayer;
     try {
-      warmupPlayer = AudioPlayer();
-      if (_isAndroidPlatform) {
-        await warmupPlayer.setPlayerMode(PlayerMode.lowLatency);
-      } else {
-        await warmupPlayer.setReleaseMode(ReleaseMode.stop);
-      }
-
       final Map<_ClickKind, String> paths =
           _toneAssetPaths[tone] ?? _toneAssetPaths[MetronomeTone.digital]!;
-      for (final String assetPath in paths.values.toSet()) {
-        if (_isAndroidPlatform) {
-          await warmupPlayer.play(
-            AssetSource(assetPath),
-            volume: 0,
-            mode: PlayerMode.lowLatency,
-          );
-        } else {
-          await warmupPlayer.play(
-            AssetSource(assetPath),
-            volume: 0,
-          );
-        }
-        if (!_isAndroidPlatform) {
-          await warmupPlayer.stop();
-        }
+      await Future.wait<AudioPool>(
+        paths.values.toSet().map(_ensurePool),
+      );
+      if (!_isDisposed) {
+        _warmedTones.add(tone);
       }
-
-      _warmedTones.add(tone);
     } catch (error) {
       debugPrint("Audio warm-up failed for ${tone.storageValue}: $error");
     } finally {
       _warmingTones.remove(tone);
-      if (warmupPlayer != null) {
-        await warmupPlayer.dispose();
-      }
     }
   }
 }
