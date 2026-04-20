@@ -33,7 +33,7 @@ class SettingsPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: <Widget>[
-                Text("璁剧疆", style: theme.textTheme.headlineSmall),
+                Text("Settings", style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 12),
                 Card(
                   child: Padding(
@@ -41,7 +41,7 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("闊抽", style: theme.textTheme.titleMedium),
+                        Text("Audio", style: theme.textTheme.titleMedium),
                         const SizedBox(height: 10),
                         Row(
                           children: <Widget>[
@@ -69,7 +69,7 @@ class SettingsPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text("闊宠壊", style: theme.textTheme.titleSmall),
+                        Text("Tone", style: theme.textTheme.titleSmall),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -95,9 +95,9 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("榛樿鍙傛暟", style: theme.textTheme.titleMedium),
+                        Text("Default Parameters", style: theme.textTheme.titleMedium),
                         const SizedBox(height: 10),
-                        Text("榛樿 BPM: ${settings.defaultBpm}"),
+                        Text("Default BPM: ${settings.defaultBpm}"),
                         Slider(
                           value: settings.defaultBpm.toDouble(),
                           min: kMinBpm.toDouble(),
@@ -111,7 +111,7 @@ class SettingsPage extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 6),
-                        Text("榛樿鎷嶅彿", style: theme.textTheme.titleSmall),
+                        Text("Default Time Signature", style: theme.textTheme.titleSmall),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -129,7 +129,7 @@ class SettingsPage extends StatelessWidget {
                           }).toList(),
                         ),
                         const SizedBox(height: 8),
-                        Text("榛樿鍒囧垎", style: theme.textTheme.titleSmall),
+                        Text("Default Subdivision", style: theme.textTheme.titleSmall),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -157,10 +157,10 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("鐣岄潰涓庢暟鎹?, style: theme.textTheme.titleMedium),
+                        Text("UI & Data", style: theme.textTheme.titleMedium),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text("娣辫壊涓婚"),
+                          title: const Text("Dark theme"),
                           value: settings.darkTheme,
                           onChanged: (bool value) {
                             onSettingsChanged(settings.copyWith(darkTheme: value));
@@ -168,7 +168,7 @@ class SettingsPage extends StatelessWidget {
                         ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text("瑙嗚鎻愮ず锛堝綋鍓嶆媿楂樹寒锛?),
+                          title: const Text("Visual hints (highlight active beat)"),
                           value: settings.visualHints,
                           onChanged: (bool value) {
                             onSettingsChanged(settings.copyWith(visualHints: value));
@@ -178,16 +178,16 @@ class SettingsPage extends StatelessWidget {
                         FilledButton.tonalIcon(
                           onPressed: onClearLocalData,
                           icon: const Icon(Icons.cleaning_services_rounded),
-                          label: const Text("娓呯悊鏈湴鏁版嵁"),
+                          label: const Text("Clear local data"),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          "绂荤嚎杩愯锛屼笉渚濊禆璐﹀彿涓庣綉缁溿€?,
+                          "Offline mode. No account or network required.",
                           style: theme.textTheme.bodySmall,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "鍏充簬搴旂敤锛歅ulseBeat MVP v2.0.1",
+                          "About: PulseBeat MVP v2.0.2",
                           style: theme.textTheme.bodySmall,
                         ),
                       ],

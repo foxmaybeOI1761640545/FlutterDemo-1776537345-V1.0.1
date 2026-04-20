@@ -1,7 +1,7 @@
 ﻿name: flutter_demo
 description: Offline metronome MVP for Web, Windows and mobile.
 publish_to: "none"
-version: 2.0.1+201
+version: 2.0.2+202
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
