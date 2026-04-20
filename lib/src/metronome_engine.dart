@@ -9,6 +9,7 @@ import "models.dart";
 enum _ClickKind {
   strong,
   normal,
+  weak,
   subdivision,
 }
 
@@ -17,16 +18,20 @@ const Map<MetronomeTone, Map<_ClickKind, String>> _toneAssetPaths =
   MetronomeTone.digital: <_ClickKind, String>{
     _ClickKind.strong: "audio/digital-strong.wav",
     _ClickKind.normal: "audio/digital-normal.wav",
+    // Dedicated weak assets are not available yet, so use lighter subdivision timbre.
+    _ClickKind.weak: "audio/digital-subdivision.wav",
     _ClickKind.subdivision: "audio/digital-subdivision.wav",
   },
   MetronomeTone.wood: <_ClickKind, String>{
     _ClickKind.strong: "audio/wood-strong.wav",
     _ClickKind.normal: "audio/wood-normal.wav",
+    _ClickKind.weak: "audio/wood-subdivision.wav",
     _ClickKind.subdivision: "audio/wood-subdivision.wav",
   },
   MetronomeTone.beep: <_ClickKind, String>{
     _ClickKind.strong: "audio/beep-strong.wav",
     _ClickKind.normal: "audio/beep-normal.wav",
+    _ClickKind.weak: "audio/beep-subdivision.wav",
     _ClickKind.subdivision: "audio/beep-subdivision.wav",
   },
 };
@@ -80,6 +85,7 @@ class MetronomeEngine {
     return switch (kind) {
       _ClickKind.strong => 1,
       _ClickKind.normal => 1.18,
+      _ClickKind.weak => 1.26,
       _ClickKind.subdivision => 1.32,
     };
   }
@@ -199,7 +205,7 @@ class MetronomeEngine {
           kind = _ClickKind.normal;
           levelScale = 0.85;
         case AccentLevel.weak:
-          kind = _ClickKind.normal;
+          kind = _ClickKind.weak;
           levelScale = 0.62;
         case AccentLevel.mute:
           kind = null;
