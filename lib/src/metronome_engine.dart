@@ -58,6 +58,8 @@ class MetronomeEngine {
   final Set<Future<void> Function()> _pendingLowLatencyStops =
       <Future<void> Function()>{};
   final Set<Timer> _activeLowLatencyStopTimers = <Timer>{};
+  Future<void>? _iosAudioContextLoader;
+  bool _iosAudioContextConfigured = false;
 
   Timer? _timer;
   int _tickCounter = 0;
@@ -80,8 +82,16 @@ class MetronomeEngine {
     if (!_isIOSPlatform) {
       return _volume;
     }
-    // Compensate iOS output so it is closer to Android loudness at the same slider value.
-    return (_volume * 1.12).clamp(0, 1).toDouble();
+    // iOS needs slightly stronger scaling to reach parity with Android loudness.
+    return (_volume * 1.2).clamp(0, 1).toDouble();
+  }
+
+  double _maxEffectiveVolumeForPlatform() {
+    if (!_isIOSPlatform) {
+      return 1;
+    }
+    // iOS platform audio can accept > 1 in some backends; keep a guarded ceiling.
+    return 1.35;
   }
 
   double _platformLevelGain(_ClickKind kind) {
@@ -89,10 +99,10 @@ class MetronomeEngine {
       return 1;
     }
     return switch (kind) {
-      _ClickKind.strong => 1,
-      _ClickKind.normal => 1.18,
-      _ClickKind.weak => 1.26,
-      _ClickKind.subdivision => 1.32,
+      _ClickKind.strong => 1.08,
+      _ClickKind.normal => 1.2,
+      _ClickKind.weak => 1.45,
+      _ClickKind.subdivision => 1.58,
     };
   }
 
@@ -131,6 +141,7 @@ class MetronomeEngine {
     }
 
     final Future<AudioPool> loader = (() async {
+      await _ensurePlatformAudioContext();
       final AudioPool pool = await AudioPool.createFromAsset(
         path: assetPath,
         minPlayers: _poolMinPlayers,
@@ -173,6 +184,7 @@ class MetronomeEngine {
     final bool toneChanged = normalizedTone != _tone;
     _tone = normalizedTone;
     if (!disablePlatformAudio && (toneChanged || !_warmedTones.contains(_tone))) {
+      unawaited(_ensurePlatformAudioContext());
       unawaited(_warmUpTone(_tone));
     }
   }
@@ -184,6 +196,7 @@ class MetronomeEngine {
     _isPlaying = true;
     _tickCounter = 0;
     if (!disablePlatformAudio) {
+      unawaited(_ensurePlatformAudioContext());
       unawaited(_warmUpTone(_tone));
     }
     _handleTick();
@@ -297,7 +310,7 @@ class MetronomeEngine {
     final double effectiveVolume = (_masterVolumeForPlatform() *
             levelScale *
             _platformLevelGain(kind))
-        .clamp(0, 1)
+        .clamp(0, _maxEffectiveVolumeForPlatform())
         .toDouble();
 
     unawaited(
@@ -350,6 +363,40 @@ class MetronomeEngine {
     } catch (error) {
       debugPrint("Audio stop failed: $error");
     }
+  }
+
+  Future<void> _ensurePlatformAudioContext() {
+    if (_isDisposed || disablePlatformAudio || !_isIOSPlatform) {
+      return Future<void>.value();
+    }
+    if (_iosAudioContextConfigured) {
+      return Future<void>.value();
+    }
+    final Future<void>? inFlight = _iosAudioContextLoader;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final Future<void> loader = (() async {
+      try {
+        await AudioPlayer.global.setAudioContext(
+          AudioContextConfig(
+            route: AudioContextConfigRoute.system,
+            focus: AudioContextConfigFocus.gain,
+            respectSilence: false,
+            stayAwake: false,
+          ).build(),
+        );
+        _iosAudioContextConfigured = true;
+      } catch (error) {
+        debugPrint("iOS audio context setup failed: $error");
+      } finally {
+        _iosAudioContextLoader = null;
+      }
+    })();
+
+    _iosAudioContextLoader = loader;
+    return loader;
   }
 
   Future<void> _warmUpTone(MetronomeTone tone) async {
