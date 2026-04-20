@@ -1,4 +1,4 @@
-import "package:flutter/material.dart";
+﻿import "package:flutter/material.dart";
 
 import "../models.dart";
 
@@ -33,7 +33,7 @@ class SettingsPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: <Widget>[
-                Text("设置", style: theme.textTheme.headlineSmall),
+                Text("璁剧疆", style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 12),
                 Card(
                   child: Padding(
@@ -41,7 +41,7 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("音频", style: theme.textTheme.titleMedium),
+                        Text("闊抽", style: theme.textTheme.titleMedium),
                         const SizedBox(height: 10),
                         Row(
                           children: <Widget>[
@@ -69,7 +69,7 @@ class SettingsPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text("音色", style: theme.textTheme.titleSmall),
+                        Text("闊宠壊", style: theme.textTheme.titleSmall),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -95,9 +95,9 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("默认参数", style: theme.textTheme.titleMedium),
+                        Text("榛樿鍙傛暟", style: theme.textTheme.titleMedium),
                         const SizedBox(height: 10),
-                        Text("默认 BPM: ${settings.defaultBpm}"),
+                        Text("榛樿 BPM: ${settings.defaultBpm}"),
                         Slider(
                           value: settings.defaultBpm.toDouble(),
                           min: kMinBpm.toDouble(),
@@ -111,7 +111,7 @@ class SettingsPage extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 6),
-                        Text("默认拍号", style: theme.textTheme.titleSmall),
+                        Text("榛樿鎷嶅彿", style: theme.textTheme.titleSmall),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -129,7 +129,7 @@ class SettingsPage extends StatelessWidget {
                           }).toList(),
                         ),
                         const SizedBox(height: 8),
-                        Text("默认切分", style: theme.textTheme.titleSmall),
+                        Text("榛樿鍒囧垎", style: theme.textTheme.titleSmall),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -157,10 +157,10 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("界面与数据", style: theme.textTheme.titleMedium),
+                        Text("鐣岄潰涓庢暟鎹?, style: theme.textTheme.titleMedium),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text("深色主题"),
+                          title: const Text("娣辫壊涓婚"),
                           value: settings.darkTheme,
                           onChanged: (bool value) {
                             onSettingsChanged(settings.copyWith(darkTheme: value));
@@ -168,7 +168,7 @@ class SettingsPage extends StatelessWidget {
                         ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text("视觉提示（当前拍高亮）"),
+                          title: const Text("瑙嗚鎻愮ず锛堝綋鍓嶆媿楂樹寒锛?),
                           value: settings.visualHints,
                           onChanged: (bool value) {
                             onSettingsChanged(settings.copyWith(visualHints: value));
@@ -178,16 +178,16 @@ class SettingsPage extends StatelessWidget {
                         FilledButton.tonalIcon(
                           onPressed: onClearLocalData,
                           icon: const Icon(Icons.cleaning_services_rounded),
-                          label: const Text("清理本地数据"),
+                          label: const Text("娓呯悊鏈湴鏁版嵁"),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          "离线运行，不依赖账号与网络。",
+                          "绂荤嚎杩愯锛屼笉渚濊禆璐﹀彿涓庣綉缁溿€?,
                           style: theme.textTheme.bodySmall,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "关于应用：PulseBeat MVP v1.0.10",
+                          "鍏充簬搴旂敤锛歅ulseBeat MVP v2.0.1",
                           style: theme.textTheme.bodySmall,
                         ),
                       ],

@@ -4,6 +4,7 @@ import "package:flutter/material.dart";
 
 import "../metronome_engine.dart";
 import "../models.dart";
+import "ear_training_page.dart";
 import "metronome_page.dart";
 import "presets_page.dart";
 import "settings_page.dart";
@@ -32,7 +33,8 @@ class _HomeShellState extends State<HomeShell> {
   late MetronomeConfig _config;
   late final MetronomeEngine _engine;
 
-  int _currentTab = 0;
+  int _mainTab = 0;
+  int _metronomeTab = 0;
   int _activeBeat = -1;
   int _activeSubTick = -1;
   final List<DateTime> _tapRecords = <DateTime>[];
@@ -178,22 +180,22 @@ class _HomeShellState extends State<HomeShell> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("保存预设"),
+          title: const Text("Save Preset"),
           content: TextField(
             controller: controller,
             autofocus: true,
             maxLength: 24,
-            decoration: const InputDecoration(hintText: "例如：慢练 C 大调"),
+            decoration: const InputDecoration(hintText: "Example: Slow C Major"),
             onSubmitted: (String value) => Navigator.of(context).pop(value.trim()),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text("取消"),
+              child: const Text("Cancel"),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-              child: const Text("保存"),
+              child: const Text("Save"),
             ),
           ],
         );
@@ -221,7 +223,7 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("已保存预设：${preset.name}")),
+      SnackBar(content: Text("Preset saved: ${preset.name}")),
     );
   }
 
@@ -238,7 +240,8 @@ class _HomeShellState extends State<HomeShell> {
     widget.onPresetsChanged(updated);
     if (switchToMain) {
       setState(() {
-        _currentTab = 0;
+        _mainTab = 1;
+        _metronomeTab = 0;
       });
     }
   }
@@ -261,16 +264,18 @@ class _HomeShellState extends State<HomeShell> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("清理本地数据"),
-          content: const Text("将重置设置并删除全部预设。该操作无法撤销。"),
+          title: const Text("Clear Local Data"),
+          content: const Text(
+            "This resets settings and removes all presets. This action cannot be undone.",
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text("取消"),
+              child: const Text("Cancel"),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text("确认清理"),
+              child: const Text("Clear"),
             ),
           ],
         );
@@ -290,70 +295,149 @@ class _HomeShellState extends State<HomeShell> {
       _tapRecords.clear();
       _activeBeat = -1;
       _activeSubTick = -1;
-      _currentTab = 0;
+      _mainTab = 1;
+      _metronomeTab = 0;
     });
+  }
+
+  void _switchMainTab(int index) {
+    if (_mainTab == index) {
+      return;
+    }
+    if (index == 0 && _isPlaying) {
+      _engine.stop();
+      _handlePlaybackStop();
+    }
+    setState(() {
+      _mainTab = index;
+    });
+  }
+
+  Widget _buildMetronomeSubTabs() {
+    final List<_MetronomeSubTabItem> tabs = <_MetronomeSubTabItem>[
+      const _MetronomeSubTabItem(index: 0, icon: Icons.speed_rounded, label: "Metronome"),
+      const _MetronomeSubTabItem(index: 1, icon: Icons.library_music_rounded, label: "Presets"),
+      const _MetronomeSubTabItem(index: 2, icon: Icons.settings_rounded, label: "Settings"),
+    ];
+
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: 58,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          itemCount: tabs.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (BuildContext context, int index) {
+            final _MetronomeSubTabItem item = tabs[index];
+            return ChoiceChip(
+              selected: _metronomeTab == item.index,
+              onSelected: (_) {
+                setState(() {
+                  _metronomeTab = item.index;
+                });
+              },
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(item.icon, size: 16),
+                  const SizedBox(width: 6),
+                  Text(item.label),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetronomeWorkspace(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _buildMetronomeSubTabs(),
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: IndexedStack(
+              index: _metronomeTab,
+              children: <Widget>[
+                MetronomePage(
+                  config: _config,
+                  isPlaying: _isPlaying,
+                  activeBeat: _activeBeat,
+                  activeSubTick: _activeSubTick,
+                  visualHintsEnabled: widget.settings.visualHints,
+                  tapCount: _tapRecords.length,
+                  onBpmMinus: () => _changeBpmBy(-1),
+                  onBpmPlus: () => _changeBpmBy(1),
+                  onSetBpm: _setBpm,
+                  onTimeSignatureChanged: _setTimeSignature,
+                  onSubdivisionChanged: _setSubdivision,
+                  onAccentChanged: _setAccent,
+                  onTogglePlay: _togglePlayback,
+                  onTapTempo: _tapTempo,
+                  onOpenPresets: () => setState(() => _metronomeTab = 1),
+                  onOpenSettings: () => setState(() => _metronomeTab = 2),
+                ),
+                PresetsPage(
+                  presets: widget.presets,
+                  onSaveCurrent: _saveCurrentPreset,
+                  onLoadPreset: (MetronomePreset preset) =>
+                      _loadPreset(preset, switchToMain: true),
+                  onDeletePreset: _deletePreset,
+                ),
+                SettingsPage(
+                  settings: widget.settings,
+                  onSettingsChanged: _updateSettings,
+                  onClearLocalData: _clearAllLocalData,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
-        index: _currentTab,
+        index: _mainTab,
         children: <Widget>[
-          MetronomePage(
-            config: _config,
-            isPlaying: _isPlaying,
-            activeBeat: _activeBeat,
-            activeSubTick: _activeSubTick,
-            visualHintsEnabled: widget.settings.visualHints,
-            tapCount: _tapRecords.length,
-            onBpmMinus: () => _changeBpmBy(-1),
-            onBpmPlus: () => _changeBpmBy(1),
-            onSetBpm: _setBpm,
-            onTimeSignatureChanged: _setTimeSignature,
-            onSubdivisionChanged: _setSubdivision,
-            onAccentChanged: _setAccent,
-            onTogglePlay: _togglePlayback,
-            onTapTempo: _tapTempo,
-            onOpenPresets: () => setState(() => _currentTab = 1),
-            onOpenSettings: () => setState(() => _currentTab = 2),
-          ),
-          PresetsPage(
-            presets: widget.presets,
-            onSaveCurrent: _saveCurrentPreset,
-            onLoadPreset: (MetronomePreset preset) =>
-                _loadPreset(preset, switchToMain: true),
-            onDeletePreset: _deletePreset,
-          ),
-          SettingsPage(
-            settings: widget.settings,
-            onSettingsChanged: _updateSettings,
-            onClearLocalData: _clearAllLocalData,
-          ),
+          const EarTrainingPage(),
+          _buildMetronomeWorkspace(context),
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentTab,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _currentTab = index;
-          });
-        },
+        selectedIndex: _mainTab,
+        onDestinationSelected: _switchMainTab,
         destinations: const <NavigationDestination>[
           NavigationDestination(
+            icon: Icon(Icons.hearing_rounded),
+            label: "Ear",
+          ),
+          NavigationDestination(
             icon: Icon(Icons.speed_rounded),
-            label: "节拍器",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.library_music_rounded),
-            label: "预设",
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_rounded),
-            label: "设置",
+            label: "Metronome",
           ),
         ],
       ),
     );
   }
+}
+
+class _MetronomeSubTabItem {
+  const _MetronomeSubTabItem({
+    required this.index,
+    required this.icon,
+    required this.label,
+  });
+
+  final int index;
+  final IconData icon;
+  final String label;
 }
