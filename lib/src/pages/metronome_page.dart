@@ -348,7 +348,14 @@ class _MainPanel extends StatelessWidget {
               runSpacing: 8,
               children: Subdivision.values.map((Subdivision subdivision) {
                 return ChoiceChip(
-                  label: Text(subdivision.label),
+                  label: Text(
+                    subdivision.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.visible,
+                  ),
+                  showCheckmark: false,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   selected: subdivision == config.subdivision,
                   onSelected: (_) => onSubdivisionChanged(subdivision),
                 );
