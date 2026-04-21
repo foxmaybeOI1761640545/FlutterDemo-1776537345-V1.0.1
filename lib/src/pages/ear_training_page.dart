@@ -25,11 +25,11 @@ enum _ModeBPromptFlow {
 
 extension _ModeBPromptFlowExtension on _ModeBPromptFlow {
   String get label {
-    return "12345678 1 1 -> 2345678";
+    return "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do";
   }
 
   String get waitingStatus {
-    return "Play 12345678 1 1 + target(2~8), waiting answer";
+    return "Play 12345678 1 1 + target(Re~Do), waiting answer";
   }
 }
 
@@ -50,10 +50,12 @@ class _DegreeSpec {
   const _DegreeSpec({
     required this.degree,
     required this.slug,
+    required this.label,
   });
 
   final String degree;
   final String slug;
+  final String label;
 }
 
 class _EarNoteSpec {
@@ -81,21 +83,22 @@ class EarTrainingPage extends StatefulWidget {
 
 class _EarTrainingPageState extends State<EarTrainingPage> {
   static const List<_DegreeSpec> _degrees = <_DegreeSpec>[
-    _DegreeSpec(degree: "2", slug: "2-Re"),
-    _DegreeSpec(degree: "3", slug: "3-Mi"),
-    _DegreeSpec(degree: "4", slug: "4-Fa"),
-    _DegreeSpec(degree: "5", slug: "5-Sol"),
-    _DegreeSpec(degree: "6", slug: "6-La"),
-    _DegreeSpec(degree: "7", slug: "7-Ti"),
-    _DegreeSpec(degree: "8", slug: "8-Do"),
+    _DegreeSpec(degree: "2", slug: "2-Re Re", label: "Re"),
+    _DegreeSpec(degree: "3", slug: "3-Mi Mi", label: "Mi"),
+    _DegreeSpec(degree: "4", slug: "4-Fa Fa", label: "Fa"),
+    _DegreeSpec(degree: "5", slug: "5-Sol Sol", label: "Sol"),
+    _DegreeSpec(degree: "6", slug: "6-La La", label: "La"),
+    _DegreeSpec(degree: "7", slug: "7-Ti Ti", label: "Ti"),
+    _DegreeSpec(degree: "8", slug: "8-Do Do", label: "Do"),
   ];
   static const int _baseOctave = 5;
   static const int _assetMinOctave = 5;
   static const int _assetMaxOctave = 5;
   static const String _defaultNoteId = "2_5";
-  static const String _defaultNoteAssetPath = "audio/2345678/2-Re.WAV";
-  static const String _modeBDefaultKeyLeadInAssetPath = "audio/ear-mypiano-aaa.WAV";
-  static const Duration _modeBDefaultKeyLeadInMaxDuration = Duration(seconds: 7);
+  static const String _defaultNoteAssetPath = "audio/12345678/2-Re Re.WAV";
+  static const String _modeBDefaultKeyLeadInAssetPath = "audio/12345678/12345678 1 1.WAV";
+  static const Duration _modeBDefaultKeyLeadInMaxDuration = Duration(seconds: 20);
+  static const Duration _modeBPromptGap = Duration(milliseconds: 150);
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
   static final Map<String, _EarNoteSpec> _noteCatalog = (() {
     final Map<String, _EarNoteSpec> catalog = <String, _EarNoteSpec>{};
@@ -106,8 +109,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           id: noteId,
           degree: degreeSpec.degree,
           octave: octave,
-          label: degreeSpec.degree,
-          assetPath: "audio/2345678/${degreeSpec.slug}.WAV",
+          label: degreeSpec.label,
+          assetPath: "audio/12345678/${degreeSpec.slug}.WAV",
         );
       }
     }
@@ -180,7 +183,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           id: _defaultNoteId,
           degree: "2",
           octave: _baseOctave,
-          label: "2",
+          label: "Re",
           assetPath: _defaultNoteAssetPath,
         );
   }
@@ -243,7 +246,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       return noteId;
     }
     if (_singleOctaveMode && note.octave == _baseOctave) {
-      return note.degree;
+      return note.label;
     }
     return note.label;
   }
@@ -372,23 +375,6 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
   }
 
-  List<String> _defaultKeyScale121NoteIds() {
-    final int tonicOctave =
-        _baseOctave.clamp(_assetMinOctave, _assetMaxOctave).toInt();
-    final List<String> noteIds = <String>[
-      _noteId("2", tonicOctave),
-      _noteId("3", tonicOctave),
-      _noteId("4", tonicOctave),
-      _noteId("5", tonicOctave),
-      _noteId("6", tonicOctave),
-      _noteId("7", tonicOctave),
-      _noteId("8", tonicOctave),
-    ];
-    return noteIds
-        .where((String id) => _noteCatalog.containsKey(id))
-        .toList(growable: false);
-  }
-
   Future<void> _playAsset(
     AudioPlayer player, {
     required String assetPath,
@@ -461,11 +447,6 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
   }
 
-  Duration get _modeBPromptGap =>
-      _speed == EarTrainingSpeed.slow
-          ? const Duration(milliseconds: 750)
-          : const Duration(milliseconds: 500);
-
   Future<void> _playModeBPrompt({
     required String noteId,
     required int token,
@@ -481,16 +462,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     try {
       await _playDefaultKeyLeadInAsset();
     } catch (_) {
-      for (final String leadInNoteId in _defaultKeyScale121NoteIds()) {
-        if (!_canContinueModeBPrompt(
-          token: token,
-          requireModeBRunning: requireModeBRunning,
-        )) {
-          return;
-        }
-        await _playNote(leadInNoteId);
-        await Future<void>.delayed(_modeBPromptGap);
-      }
+      // Keep prompt flow stable even if lead-in asset fails once.
     }
 
     if (!_canContinueModeBPrompt(
@@ -1228,7 +1200,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         const SizedBox(height: 8),
         Text(
           singleOctaveChoices
-              ? "Choose one from 2 3 4 5 6 7 8."
+              ? "Choose one from Re Mi Fa Sol La Ti Do."
               : "Choose one from active set (${choiceNotes.length} notes, 2~8).",
         ),
         const SizedBox(height: 4),
