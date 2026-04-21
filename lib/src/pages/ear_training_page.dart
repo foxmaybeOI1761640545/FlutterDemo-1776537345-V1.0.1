@@ -400,7 +400,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     try {
       final Future<void> completed = _leadInPlayer.onPlayerComplete.first;
       await _leadInPlayer.play(
-        const AssetSource(_modeBDefaultKeyLeadInAssetPath),
+        AssetSource(_modeBDefaultKeyLeadInAssetPath),
         volume: 0.92,
         mode: PlayerMode.mediaPlayer,
       );
