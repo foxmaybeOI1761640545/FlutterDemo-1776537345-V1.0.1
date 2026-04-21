@@ -75,7 +75,12 @@ class _EarNoteSpec {
 }
 
 class EarTrainingPage extends StatefulWidget {
-  const EarTrainingPage({super.key});
+  const EarTrainingPage({
+    this.isActive = true,
+    super.key,
+  });
+
+  final bool isActive;
 
   @override
   State<EarTrainingPage> createState() => _EarTrainingPageState();
@@ -150,6 +155,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   _ModeAPhase _modeAPhase = _ModeAPhase.tonic;
   bool _modeARunning = false;
   bool _modeAPaused = false;
+  bool _modeAAutoPausedByVisibility = false;
   int _modeAReplayCount = 0;
   String _modeAStatus = "Not started";
   String? _modeAAnswer;
@@ -159,6 +165,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   List<String> _modeBQuestions = <String>[];
   int _modeBIndex = 0;
   bool _modeBRunning = false;
+  bool _modeBPaused = false;
+  bool _modeBAutoPausedByVisibility = false;
   bool _modeBLocked = false;
   int _modeBCorrect = 0;
   int _modeBReplayCount = 0;
@@ -270,6 +278,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (requireModeBRunning && !_modeBRunning) {
       return false;
     }
+    if (_modeBPaused) {
+      return false;
+    }
     return true;
   }
 
@@ -277,6 +288,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   void initState() {
     super.initState();
     unawaited(_configureAudioPlayers());
+  }
+
+  @override
+  void didUpdateWidget(covariant EarTrainingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      _syncPlaybackWithVisibility();
+    }
   }
 
   @override
@@ -354,6 +373,96 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return _audioSequenceToken;
   }
 
+  bool get _isModeATabVisible => widget.isActive && _currentTab == 1;
+
+  bool get _isModeBTabVisible => widget.isActive && _currentTab == 2;
+
+  void _pauseModeAForVisibility() {
+    if (!_modeARunning || _modeAPaused) {
+      return;
+    }
+    _modeATimer?.cancel();
+    _modeAWatch.stop();
+    _cancelAudioSequence();
+    setState(() {
+      _modeAPaused = true;
+      _modeAAutoPausedByVisibility = true;
+      _modeAStatus = "Paused";
+    });
+  }
+
+  void _resumeModeAForVisibility() {
+    if (!_modeARunning || !_modeAPaused || !_modeAAutoPausedByVisibility) {
+      return;
+    }
+    _modeAWatch.start();
+    setState(() {
+      _modeAPaused = false;
+      _modeAAutoPausedByVisibility = false;
+      final String? noteId = _modeACurrentNoteId;
+      _modeAStatus = noteId == null
+          ? "Resume"
+          : "Resume: ${_modeAPhaseLabel(noteId)}";
+    });
+    _playModeAPhaseAudio();
+    _scheduleModeAAdvance();
+  }
+
+  void _pauseModeBForVisibility() {
+    if (!_modeBRunning || _modeBPaused) {
+      return;
+    }
+    _modeBFeedbackTimer?.cancel();
+    _modeBWatch.stop();
+    _cancelAudioSequence();
+    setState(() {
+      _modeBPaused = true;
+      _modeBAutoPausedByVisibility = true;
+      _modeBStatus = "Paused";
+    });
+  }
+
+  void _resumeModeBForVisibility() {
+    if (!_modeBRunning || !_modeBPaused || !_modeBAutoPausedByVisibility) {
+      return;
+    }
+    _modeBWatch.start();
+    setState(() {
+      _modeBPaused = false;
+      _modeBAutoPausedByVisibility = false;
+      _modeBStatus = _modeBLocked ? "Answer checked" : _modeBPromptFlow.waitingStatus;
+    });
+    if (_modeBLocked) {
+      if (_autoAdvanceToNextQuestion) {
+        _modeBFeedbackTimer?.cancel();
+        _modeBFeedbackTimer = Timer(
+          const Duration(milliseconds: 300),
+          _advanceModeB,
+        );
+      }
+      return;
+    }
+    _playCurrentModeBPrompt();
+  }
+
+  void _syncPlaybackWithVisibility() {
+    if (_isModeATabVisible) {
+      _resumeModeAForVisibility();
+    } else {
+      _pauseModeAForVisibility();
+    }
+
+    if (_isModeBTabVisible) {
+      _resumeModeBForVisibility();
+    } else {
+      _pauseModeBForVisibility();
+    }
+
+    if (!widget.isActive || (_currentTab != 1 && _currentTab != 2)) {
+      _cancelAudioSequence();
+    }
+  }
+
   Future<void> _playDefaultKeyLeadInAsset() async {
     await _ensurePlatformAudioContext();
     await _leadInPlayer.stop();
@@ -423,7 +532,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _playModeAPhaseAudio() {
-    if (!_modeARunning) {
+    if (!_modeARunning || _modeAPaused || !_isModeATabVisible) {
       return;
     }
     final String? noteId = _modeACurrentNoteId;
@@ -484,7 +593,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   void _playCurrentModeBPrompt() {
     final String? noteId = _modeBCurrentNoteId;
-    if (!_modeBRunning || noteId == null) {
+    if (!_modeBRunning || _modeBPaused || !_isModeBTabVisible || noteId == null) {
       return;
     }
     final int token = _cancelAudioSequence();
@@ -583,16 +692,18 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeAPhase = _ModeAPhase.tonic;
       _modeARunning = true;
       _modeAPaused = false;
+      _modeAAutoPausedByVisibility = false;
       _modeAReplayCount = 0;
       _modeAAnswer = null;
       _modeAStatus = _modeAPhaseLabel(_modeAQuestions[_modeAIndex]);
     });
+    _syncPlaybackWithVisibility();
     _playModeAPhaseAudio();
     _scheduleModeAAdvance();
   }
 
   void _scheduleModeAAdvance() {
-    if (!_modeARunning || _modeAPaused || _modeAQuestions.isEmpty) {
+    if (!_modeARunning || _modeAPaused || !_isModeATabVisible || _modeAQuestions.isEmpty) {
       return;
     }
     _modeATimer?.cancel();
@@ -600,7 +711,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _advanceModeA() {
-    if (!mounted || !_modeARunning || _modeAPaused || _modeAQuestions.isEmpty) {
+    if (!mounted || !_modeARunning || _modeAPaused || !_isModeATabVisible || _modeAQuestions.isEmpty) {
       return;
     }
 
@@ -644,6 +755,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeAWatch.start();
       setState(() {
         _modeAPaused = false;
+        _modeAAutoPausedByVisibility = false;
         final String? noteId = _modeACurrentNoteId;
         _modeAStatus = noteId == null
             ? "Resume"
@@ -657,6 +769,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     _modeAWatch.stop();
     setState(() {
       _modeAPaused = true;
+      _modeAAutoPausedByVisibility = false;
       _modeAStatus = "Paused";
     });
   }
@@ -672,6 +785,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeAAnswer = null;
       _modeAStatus = _modeAPhaseLabel(_modeAQuestions[_modeAIndex]);
       _modeAPaused = false;
+      _modeAAutoPausedByVisibility = false;
     });
     _playModeAPhaseAudio();
     _scheduleModeAAdvance();
@@ -684,6 +798,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     setState(() {
       _modeARunning = false;
       _modeAPaused = false;
+      _modeAAutoPausedByVisibility = false;
       _modeAStatus = "Stopped";
     });
   }
@@ -706,6 +821,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     setState(() {
       _modeARunning = false;
       _modeAPaused = false;
+      _modeAAutoPausedByVisibility = false;
       _modeAStatus = "Finished";
       _todayCompletedSets += 1;
       _todayTrainingDuration += record.duration;
@@ -716,6 +832,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         _history.removeRange(20, _history.length);
       }
     });
+    _syncPlaybackWithVisibility();
   }
 
   void _startModeB({List<String>? customQuestions}) {
@@ -737,6 +854,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBQuestions = questions;
       _modeBIndex = 0;
       _modeBRunning = true;
+      _modeBPaused = false;
+      _modeBAutoPausedByVisibility = false;
       _modeBLocked = false;
       _modeBCorrect = 0;
       _modeBReplayCount = 0;
@@ -745,11 +864,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBStatus = _modeBPromptFlow.waitingStatus;
       _modeBWrongCounts.clear();
     });
+    _syncPlaybackWithVisibility();
     _playCurrentModeBPrompt();
   }
 
   void _submitModeB(String selected) {
-    if (!_modeBRunning || _modeBLocked || _modeBQuestions.isEmpty) {
+    if (!_modeBRunning || _modeBPaused || _modeBLocked || _modeBQuestions.isEmpty) {
       return;
     }
 
@@ -790,7 +910,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         if (delay > Duration.zero) {
           await Future<void>.delayed(delay);
         }
-        if (!mounted || !_modeBRunning) {
+        if (!mounted || !_modeBRunning || _modeBPaused || !_isModeBTabVisible) {
           return;
         }
         await _playNote(answerToReplay, volume: 0.94);
@@ -806,7 +926,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _advanceModeB() {
-    if (!mounted || !_modeBRunning) {
+    if (!mounted || !_modeBRunning || _modeBPaused) {
       return;
     }
     _modeBFeedbackTimer?.cancel();
@@ -843,6 +963,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
     setState(() {
       _modeBRunning = false;
+      _modeBPaused = false;
+      _modeBAutoPausedByVisibility = false;
       _modeBLocked = false;
       _modeBStatus = "Finished";
       _todayCompletedSets += 1;
@@ -854,6 +976,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         _history.removeRange(20, _history.length);
       }
     });
+    _syncPlaybackWithVisibility();
   }
 
   void _exitModeB() {
@@ -862,13 +985,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     _cancelAudioSequence();
     setState(() {
       _modeBRunning = false;
+      _modeBPaused = false;
+      _modeBAutoPausedByVisibility = false;
       _modeBLocked = false;
       _modeBStatus = "Stopped";
     });
   }
 
   void _replayModeBQuestion() {
-    if (!_modeBRunning) {
+    if (!_modeBRunning || _modeBPaused) {
       return;
     }
     setState(() {
@@ -984,6 +1109,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
               setState(() {
                 _currentTab = item.index;
               });
+              _syncPlaybackWithVisibility();
             },
           );
         },
@@ -1080,6 +1206,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     setState(() {
                       _currentTab = 3;
                     });
+                    _syncPlaybackWithVisibility();
                   },
                   icon: const Icon(Icons.insights_rounded),
                   label: const Text("Open Results"),
@@ -1231,7 +1358,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     return SizedBox(
                       width: denseChoices ? 82 : 92,
                       child: FilledButton(
-                        onPressed: _modeBRunning ? () => _submitModeB(note.id) : null,
+                        onPressed: (_modeBRunning && !_modeBPaused)
+                            ? () => _submitModeB(note.id)
+                            : null,
                         style: _modeBChoiceStyle(theme, note.id),
                         child: Text(_noteDisplayLabel(note.id)),
                       ),

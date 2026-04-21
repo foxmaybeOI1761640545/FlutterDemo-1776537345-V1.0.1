@@ -408,7 +408,7 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(
         index: _mainTab,
         children: <Widget>[
-          const EarTrainingPage(),
+          EarTrainingPage(isActive: _mainTab == 0),
           _buildMetronomeWorkspace(context),
         ],
       ),
