@@ -83,20 +83,20 @@ class EarTrainingPage extends StatefulWidget {
 
 class _EarTrainingPageState extends State<EarTrainingPage> {
   static const List<_DegreeSpec> _degrees = <_DegreeSpec>[
-    _DegreeSpec(degree: "2", slug: "2-Re Re", label: "Re"),
-    _DegreeSpec(degree: "3", slug: "3-Mi Mi", label: "Mi"),
-    _DegreeSpec(degree: "4", slug: "4-Fa Fa", label: "Fa"),
-    _DegreeSpec(degree: "5", slug: "5-Sol Sol", label: "Sol"),
-    _DegreeSpec(degree: "6", slug: "6-La La", label: "La"),
-    _DegreeSpec(degree: "7", slug: "7-Ti Ti", label: "Ti"),
-    _DegreeSpec(degree: "8", slug: "8-Do Do", label: "Do"),
+    _DegreeSpec(degree: "2", slug: "2-Re", label: "Re"),
+    _DegreeSpec(degree: "3", slug: "3-Mi", label: "Mi"),
+    _DegreeSpec(degree: "4", slug: "4-Fa", label: "Fa"),
+    _DegreeSpec(degree: "5", slug: "5-Sol", label: "Sol"),
+    _DegreeSpec(degree: "6", slug: "6-La", label: "La"),
+    _DegreeSpec(degree: "7", slug: "7-Ti", label: "Ti"),
+    _DegreeSpec(degree: "8", slug: "8-Do", label: "Do"),
   ];
   static const int _baseOctave = 5;
   static const int _assetMinOctave = 5;
   static const int _assetMaxOctave = 5;
   static const String _defaultNoteId = "2_5";
-  static const String _defaultNoteAssetPath = "audio/12345678/2-Re Re.WAV";
-  static const String _modeBDefaultKeyLeadInAssetPath = "audio/12345678/12345678 1 1.WAV";
+  static const String _defaultNoteAssetPath = "audio/12345678/2-Re.WAV";
+  static const String _modeBDefaultKeyLeadInAssetPath = "audio/12345678/12345678-1-1.WAV";
   static const Duration _modeBDefaultKeyLeadInMaxDuration = Duration(seconds: 20);
   static const Duration _modeBPromptGap = Duration(milliseconds: 150);
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
