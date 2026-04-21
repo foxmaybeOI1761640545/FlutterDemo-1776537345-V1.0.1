@@ -655,11 +655,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   Duration _modeAPhaseDuration(_ModeAPhase phase) {
     final bool slow = _speed == EarTrainingSpeed.slow;
     return switch (phase) {
-      _ModeAPhase.tonic => Duration(milliseconds: slow ? 1200 : 850),
-      _ModeAPhase.target => Duration(milliseconds: slow ? 1100 : 700),
+      _ModeAPhase.tonic => Duration(milliseconds: slow ? 5600 : 4600),
+      _ModeAPhase.target => Duration(milliseconds: slow ? 5600 : 4600),
       _ModeAPhase.think => Duration(milliseconds: slow ? 2500 : 1800),
       _ModeAPhase.answer => Duration(milliseconds: slow ? 1300 : 950),
-      _ModeAPhase.replay => Duration(milliseconds: slow ? 1100 : 750),
+      _ModeAPhase.replay => Duration(milliseconds: slow ? 5600 : 4600),
     };
   }
 
