@@ -20,6 +20,7 @@ extension EarTrainingSpeedExtension on EarTrainingSpeed {
 }
 
 enum _ModeBPromptFlow {
+  defaultKeyScale121ThenTarget,
   scaleThenTarget,
   tonicThenTarget,
 }
@@ -27,6 +28,7 @@ enum _ModeBPromptFlow {
 extension _ModeBPromptFlowExtension on _ModeBPromptFlow {
   String get label {
     return switch (this) {
+      _ModeBPromptFlow.defaultKeyScale121ThenTarget => "12345678 1 1 -> target",
       _ModeBPromptFlow.scaleThenTarget => "1234567 -> target",
       _ModeBPromptFlow.tonicThenTarget => "1 -> target",
     };
@@ -34,6 +36,8 @@ extension _ModeBPromptFlowExtension on _ModeBPromptFlow {
 
   String get waitingStatus {
     return switch (this) {
+      _ModeBPromptFlow.defaultKeyScale121ThenTarget =>
+        "Play 12345678 1 1 + target, waiting answer",
       _ModeBPromptFlow.scaleThenTarget => "Play 1234567 + target, waiting answer",
       _ModeBPromptFlow.tonicThenTarget => "Play tonic + target, waiting answer",
     };
@@ -102,6 +106,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   static const int _maxOctaveExpansion = 2;
   static const String _defaultNoteId = "Do_5";
   static const String _defaultNoteAssetPath = "audio/ear-piano-do5.wav";
+  static const String _modeBDefaultKeyLeadInAssetPath = "audio/ear-mypiano-aaa.WAV";
+  static const Duration _modeBDefaultKeyLeadInMaxDuration = Duration(seconds: 7);
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
   static final Map<String, _EarNoteSpec> _noteCatalog = (() {
     final Map<String, _EarNoteSpec> catalog = <String, _EarNoteSpec>{};
@@ -130,6 +136,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   final Random _random = Random();
   final AudioPlayer _notePlayer = AudioPlayer();
+  final AudioPlayer _leadInPlayer = AudioPlayer();
   final AudioPlayer _hintPlayer = AudioPlayer();
 
   int _currentTab = 0;
@@ -137,7 +144,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   int _lowOctaveExpansion = 0;
   int _highOctaveExpansion = 0;
   EarTrainingSpeed _speed = EarTrainingSpeed.standard;
-  _ModeBPromptFlow _modeBPromptFlow = _ModeBPromptFlow.scaleThenTarget;
+  _ModeBPromptFlow _modeBPromptFlow =
+      _ModeBPromptFlow.defaultKeyScale121ThenTarget;
   bool _autoPlayAnswerInModeB = true;
   bool _autoAdvanceToNextQuestion = true;
   bool _errorHintEnabled = true;
@@ -314,6 +322,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   void dispose() {
     _cancelAudioSequence();
     unawaited(_notePlayer.dispose());
+    unawaited(_leadInPlayer.dispose());
     unawaited(_hintPlayer.dispose());
     _modeATimer?.cancel();
     _modeBFeedbackTimer?.cancel();
@@ -337,6 +346,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   Future<void> _configureAudioPlayers() async {
     try {
       await _notePlayer.setReleaseMode(ReleaseMode.stop);
+      await _leadInPlayer.setReleaseMode(ReleaseMode.stop);
       await _hintPlayer.setReleaseMode(ReleaseMode.stop);
       await _ensurePlatformAudioContext();
     } catch (error) {
@@ -378,8 +388,52 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   int _cancelAudioSequence() {
     _audioSequenceToken += 1;
     unawaited(_notePlayer.stop());
+    unawaited(_leadInPlayer.stop());
     unawaited(_hintPlayer.stop());
     return _audioSequenceToken;
+  }
+
+  Future<void> _playDefaultKeyLeadInAsset() async {
+    await _ensurePlatformAudioContext();
+    await _leadInPlayer.stop();
+
+    try {
+      final Future<void> completed = _leadInPlayer.onPlayerComplete.first;
+      await _leadInPlayer.play(
+        const AssetSource(_modeBDefaultKeyLeadInAssetPath),
+        volume: 0.92,
+        mode: PlayerMode.mediaPlayer,
+      );
+      await completed.timeout(
+        _modeBDefaultKeyLeadInMaxDuration,
+        onTimeout: () => Future<void>.value(),
+      );
+    } catch (error) {
+      debugPrint("Ear training lead-in playback failed: $error");
+      rethrow;
+    }
+  }
+
+  List<String> _defaultKeyScale121NoteIds() {
+    final int tonicOctave =
+        _baseOctave.clamp(_assetMinOctave, _assetMaxOctave).toInt();
+    final int upperTonicOctave =
+        (tonicOctave + 1).clamp(_assetMinOctave, _assetMaxOctave).toInt();
+    final List<String> noteIds = <String>[
+      _noteId("Do", tonicOctave),
+      _noteId("Re", tonicOctave),
+      _noteId("Mi", tonicOctave),
+      _noteId("Fa", tonicOctave),
+      _noteId("Sol", tonicOctave),
+      _noteId("La", tonicOctave),
+      _noteId("Ti", tonicOctave),
+      _noteId("Do", upperTonicOctave),
+      _noteId("Do", tonicOctave),
+      _noteId("Do", tonicOctave),
+    ];
+    return noteIds
+        .where((String id) => _noteCatalog.containsKey(id))
+        .toList(growable: false);
   }
 
   Future<void> _playAsset(
@@ -464,9 +518,50 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     required int token,
     bool requireModeBRunning = true,
   }) async {
+    if (_modeBPromptFlow == _ModeBPromptFlow.defaultKeyScale121ThenTarget) {
+      if (!_canContinueModeBPrompt(
+        token: token,
+        requireModeBRunning: requireModeBRunning,
+      )) {
+        return;
+      }
+
+      try {
+        await _playDefaultKeyLeadInAsset();
+      } catch (_) {
+        for (final String leadInNoteId in _defaultKeyScale121NoteIds()) {
+          if (!_canContinueModeBPrompt(
+            token: token,
+            requireModeBRunning: requireModeBRunning,
+          )) {
+            return;
+          }
+          await _playNote(leadInNoteId);
+          await Future<void>.delayed(_modeBPromptGap);
+        }
+      }
+
+      if (!_canContinueModeBPrompt(
+        token: token,
+        requireModeBRunning: requireModeBRunning,
+      )) {
+        return;
+      }
+      await Future<void>.delayed(_modeBPromptGap);
+      if (!_canContinueModeBPrompt(
+        token: token,
+        requireModeBRunning: requireModeBRunning,
+      )) {
+        return;
+      }
+      await _playNote(noteId, volume: 0.94);
+      return;
+    }
+
     final List<String> leadInNotes = switch (_modeBPromptFlow) {
       _ModeBPromptFlow.scaleThenTarget => _scaleNoteIdsFor(noteId),
       _ModeBPromptFlow.tonicThenTarget => <String>[_tonicNoteIdFor(noteId)],
+      _ModeBPromptFlow.defaultKeyScale121ThenTarget => _defaultKeyScale121NoteIds(),
     };
 
     for (final String leadInNoteId in leadInNotes) {
