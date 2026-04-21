@@ -103,6 +103,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   static const String _defaultNoteAssetPath = "audio/12345678/2-Re.WAV";
   static const String _modeBDefaultKeyLeadInAssetPath = "audio/12345678/12345678-1-1.WAV";
   static const Duration _modeBDefaultKeyLeadInMaxDuration = Duration(seconds: 20);
+  static const Duration _modeBPromptNoteMaxDuration = Duration(seconds: 8);
   static const Duration _modeBPromptGap = Duration(milliseconds: 150);
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
   static final Map<String, _EarNoteSpec> _noteCatalog = (() {
@@ -167,6 +168,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   bool _modeBRunning = false;
   bool _modeBPaused = false;
   bool _modeBAutoPausedByVisibility = false;
+  bool _modeBPromptReadyForAnswer = false;
   bool _modeBLocked = false;
   int _modeBCorrect = 0;
   int _modeBReplayCount = 0;
@@ -418,6 +420,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     setState(() {
       _modeBPaused = true;
       _modeBAutoPausedByVisibility = true;
+      _modeBPromptReadyForAnswer = false;
       _modeBStatus = "Paused";
     });
   }
@@ -506,6 +509,32 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
   }
 
+  Future<void> _playAssetAndWait(
+    AudioPlayer player, {
+    required String assetPath,
+    required double volume,
+    required Duration maxDuration,
+  }) async {
+    await _ensurePlatformAudioContext();
+    await player.stop();
+    try {
+      final Future<void> completed = player.onPlayerComplete.first;
+      await player.play(
+        AssetSource(assetPath),
+        volume: volume,
+        mode: PlayerMode.mediaPlayer,
+      );
+      await completed.timeout(maxDuration, onTimeout: () => Future<void>.value());
+    } catch (_) {
+      await _playAsset(
+        player,
+        assetPath: assetPath,
+        volume: volume,
+      );
+      await Future<void>.delayed(maxDuration);
+    }
+  }
+
   Future<void> _playNote(String noteId, {double volume = 0.9}) async {
     final String assetPath = _resolveNote(noteId).assetPath;
     try {
@@ -516,6 +545,24 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       );
     } catch (error) {
       debugPrint("Ear training note playback failed: $error");
+    }
+  }
+
+  Future<void> _playNoteAndWait(
+    String noteId, {
+    double volume = 0.9,
+    Duration maxDuration = _modeBPromptNoteMaxDuration,
+  }) async {
+    final String assetPath = _resolveNote(noteId).assetPath;
+    try {
+      await _playAssetAndWait(
+        _notePlayer,
+        assetPath: assetPath,
+        volume: volume.clamp(0, 1).toDouble(),
+        maxDuration: maxDuration,
+      );
+    } catch (error) {
+      debugPrint("Ear training note wait playback failed: $error");
     }
   }
 
@@ -588,7 +635,20 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     )) {
       return;
     }
-    await _playNote(noteId, volume: 0.94);
+    await _playNoteAndWait(noteId, volume: 0.94);
+
+    if (!_canContinueModeBPrompt(
+      token: token,
+      requireModeBRunning: requireModeBRunning,
+    )) {
+      return;
+    }
+    if (requireModeBRunning) {
+      setState(() {
+        _modeBPromptReadyForAnswer = true;
+        _modeBStatus = "Prompt completed, choose answer";
+      });
+    }
   }
 
   void _playCurrentModeBPrompt() {
@@ -597,6 +657,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       return;
     }
     final int token = _cancelAudioSequence();
+    setState(() {
+      _modeBPromptReadyForAnswer = false;
+      _modeBStatus = "Prompt playing...";
+    });
     unawaited(_playModeBPrompt(noteId: noteId, token: token));
   }
 
@@ -856,6 +920,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBRunning = true;
       _modeBPaused = false;
       _modeBAutoPausedByVisibility = false;
+      _modeBPromptReadyForAnswer = false;
       _modeBLocked = false;
       _modeBCorrect = 0;
       _modeBReplayCount = 0;
@@ -869,7 +934,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _submitModeB(String selected) {
-    if (!_modeBRunning || _modeBPaused || _modeBLocked || _modeBQuestions.isEmpty) {
+    if (!_modeBRunning ||
+        _modeBPaused ||
+        !_modeBPromptReadyForAnswer ||
+        _modeBLocked ||
+        _modeBQuestions.isEmpty) {
       return;
     }
 
@@ -880,6 +949,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
     setState(() {
       _modeBLocked = true;
+      _modeBPromptReadyForAnswer = false;
       _modeBSelected = selected;
       if (isCorrect) {
         _modeBCorrect += 1;
@@ -939,6 +1009,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     setState(() {
       _modeBIndex += 1;
       _modeBLocked = false;
+      _modeBPromptReadyForAnswer = false;
       _modeBSelected = null;
       _modeBFeedback = null;
       _modeBStatus = _modeBPromptFlow.waitingStatus;
@@ -965,6 +1036,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBRunning = false;
       _modeBPaused = false;
       _modeBAutoPausedByVisibility = false;
+      _modeBPromptReadyForAnswer = false;
       _modeBLocked = false;
       _modeBStatus = "Finished";
       _todayCompletedSets += 1;
@@ -987,6 +1059,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBRunning = false;
       _modeBPaused = false;
       _modeBAutoPausedByVisibility = false;
+      _modeBPromptReadyForAnswer = false;
       _modeBLocked = false;
       _modeBStatus = "Stopped";
     });
@@ -1425,6 +1498,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                   const SizedBox(height: 6),
                   Text(_modeBFeedback!),
                 ],
+                if (_modeBRunning && !_modeBLocked && !_modeBPromptReadyForAnswer) ...<Widget>[
+                  const SizedBox(height: 6),
+                  const Text("Wait for prompt playback to finish before choosing."),
+                ],
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -1434,6 +1511,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                       width: denseChoices ? 82 : 92,
                       child: FilledButton(
                         onPressed: (_modeBRunning && !_modeBPaused)
+                            && !_modeBLocked
+                            && _modeBPromptReadyForAnswer
                             ? () => _submitModeB(note.id)
                             : null,
                         style: _modeBChoiceStyle(theme, note.id),
