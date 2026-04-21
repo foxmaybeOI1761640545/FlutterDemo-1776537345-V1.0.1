@@ -141,6 +141,19 @@ def generate_assets(output_dir: Path, min_octave: int, max_octave: int) -> None:
             wav_file.writeframes(samples)
         print(f"generated {note_label:<5} {path} @ {frequency_hz:9.4f}Hz")
 
+    # Backward compatibility:
+    # overwrite legacy single-octave filenames with octave-5 piano assets.
+    legacy_octave = 5
+    for degree, slug, _ in DEGREE_SPECS:
+        key = f"{degree}{legacy_octave}"
+        source_name = specs.get(key, (None, None))[0]
+        if source_name is None:
+            continue
+        source_path = output_dir / source_name
+        legacy_path = output_dir / f"ear-note-{slug}.wav"
+        legacy_path.write_bytes(source_path.read_bytes())
+        print(f"aliased {legacy_path} <= {source_path.name}")
+
 
 def _read_wav_as_floats(path: Path) -> tuple[list[float], int]:
     with wave.open(str(path), "rb") as wav_file:

@@ -200,7 +200,7 @@ class SettingsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "About: PulseBeat MVP v2.0.7",
+                          "About: PulseBeat MVP v2.0.8",
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
