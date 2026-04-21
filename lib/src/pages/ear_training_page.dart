@@ -1022,6 +1022,81 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     _startModeB(customQuestions: _buildWrongRedoQuestions());
   }
 
+  _SessionRecord? _latestRecordByMode(_EarMode mode) {
+    for (final _SessionRecord record in _history) {
+      if (record.mode == mode) {
+        return record;
+      }
+    }
+    return null;
+  }
+
+  void _syncLatestRecordsFromHistory() {
+    _latestModeARecord = _latestRecordByMode(_EarMode.listenAndReveal);
+    _latestModeBRecord = _latestRecordByMode(_EarMode.listenAndChoose);
+  }
+
+  Future<void> _deleteHistoryRecord(_SessionRecord record) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Delete History Item"),
+          content: const Text("Delete this training record?"),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text("Cancel"),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text("Delete"),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    setState(() {
+      _history.remove(record);
+      _syncLatestRecordsFromHistory();
+    });
+  }
+
+  Future<void> _clearHistoryRecords() async {
+    if (_history.isEmpty) {
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Clear History"),
+          content: const Text("Delete all recent history records?"),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text("Cancel"),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text("Clear"),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    setState(() {
+      _history.clear();
+      _syncLatestRecordsFromHistory();
+    });
+  }
+
   String _formatDuration(Duration duration) {
     final int totalSeconds = duration.inSeconds;
     final int minutes = totalSeconds ~/ 60;
@@ -1508,7 +1583,18 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           ],
         ),
         const SizedBox(height: 12),
-        Text("Recent History", style: theme.textTheme.titleMedium),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text("Recent History", style: theme.textTheme.titleMedium),
+            ),
+            TextButton.icon(
+              onPressed: _history.isEmpty ? null : _clearHistoryRecords,
+              icon: const Icon(Icons.delete_sweep_rounded),
+              label: const Text("Clear"),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         if (_history.isEmpty)
           Card(
@@ -1530,9 +1616,19 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
               subtitle: Text(
                 "${record.questionCount} Q | ${_formatDuration(record.duration)} | $accuracy",
               ),
-              trailing: Text(
-                "${record.finishedAt.hour.toString().padLeft(2, "0")}:"
-                "${record.finishedAt.minute.toString().padLeft(2, "0")}",
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    "${record.finishedAt.hour.toString().padLeft(2, "0")}:"
+                    "${record.finishedAt.minute.toString().padLeft(2, "0")}",
+                  ),
+                  IconButton(
+                    tooltip: "Delete",
+                    onPressed: () => _deleteHistoryRecord(record),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                ],
               ),
             ),
           );
