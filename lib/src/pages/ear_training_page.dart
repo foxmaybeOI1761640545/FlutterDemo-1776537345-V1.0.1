@@ -32,6 +32,32 @@ enum _ModeAPhase {
   replay,
 }
 
+class _DegreeSpec {
+  const _DegreeSpec({
+    required this.degree,
+    required this.slug,
+  });
+
+  final String degree;
+  final String slug;
+}
+
+class _EarNoteSpec {
+  const _EarNoteSpec({
+    required this.id,
+    required this.degree,
+    required this.octave,
+    required this.label,
+    required this.assetPath,
+  });
+
+  final String id;
+  final String degree;
+  final int octave;
+  final String label;
+  final String assetPath;
+}
+
 class EarTrainingPage extends StatefulWidget {
   const EarTrainingPage({super.key});
 
@@ -40,26 +66,46 @@ class EarTrainingPage extends StatefulWidget {
 }
 
 class _EarTrainingPageState extends State<EarTrainingPage> {
-  static const List<String> _degrees = <String>[
-    "Do",
-    "Re",
-    "Mi",
-    "Fa",
-    "Sol",
-    "La",
-    "Ti",
+  static const List<_DegreeSpec> _degrees = <_DegreeSpec>[
+    _DegreeSpec(degree: "Do", slug: "do"),
+    _DegreeSpec(degree: "Re", slug: "re"),
+    _DegreeSpec(degree: "Mi", slug: "mi"),
+    _DegreeSpec(degree: "Fa", slug: "fa"),
+    _DegreeSpec(degree: "Sol", slug: "sol"),
+    _DegreeSpec(degree: "La", slug: "la"),
+    _DegreeSpec(degree: "Ti", slug: "ti"),
   ];
-  static const Map<String, String> _degreeNoteAssetPaths = <String, String>{
-    "Do": "audio/ear-note-do.wav",
-    "Re": "audio/ear-note-re.wav",
-    "Mi": "audio/ear-note-mi.wav",
-    "Fa": "audio/ear-note-fa.wav",
-    "Sol": "audio/ear-note-sol.wav",
-    "La": "audio/ear-note-la.wav",
-    "Ti": "audio/ear-note-ti.wav",
-  };
-  static const String _defaultNoteAssetPath = "audio/ear-note-do.wav";
+  static const int _baseOctave = 5;
+  static const int _assetMinOctave = 3;
+  static const int _assetMaxOctave = 7;
+  static const int _maxOctaveExpansion = 2;
+  static const String _defaultNoteId = "Do_5";
+  static const String _defaultNoteAssetPath = "audio/ear-piano-do5.wav";
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
+  static final Map<String, _EarNoteSpec> _noteCatalog = (() {
+    final Map<String, _EarNoteSpec> catalog = <String, _EarNoteSpec>{};
+    for (int octave = _assetMinOctave; octave <= _assetMaxOctave; octave++) {
+      for (final _DegreeSpec degreeSpec in _degrees) {
+        final String noteId = _noteId(degreeSpec.degree, octave);
+        catalog[noteId] = _EarNoteSpec(
+          id: noteId,
+          degree: degreeSpec.degree,
+          octave: octave,
+          label: "${degreeSpec.degree}$octave",
+          assetPath: "audio/ear-piano-${degreeSpec.slug}$octave.wav",
+        );
+      }
+    }
+    return catalog;
+  })();
+  static final Map<String, int> _degreeOrder = <String, int>{
+    for (int index = 0; index < _degrees.length; index++)
+      _degrees[index].degree: index,
+  };
+
+  static String _noteId(String degree, int octave) {
+    return "${degree}_$octave";
+  }
 
   final Random _random = Random();
   final AudioPlayer _notePlayer = AudioPlayer();
@@ -67,6 +113,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   int _currentTab = 0;
   int _questionCount = 10;
+  int _lowOctaveExpansion = 0;
+  int _highOctaveExpansion = 0;
   EarTrainingSpeed _speed = EarTrainingSpeed.standard;
   bool _autoPlayAnswerInModeB = true;
   bool _autoAdvanceToNextQuestion = true;
@@ -110,6 +158,105 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   bool get _isIOSPlatform =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
+  _EarNoteSpec get _defaultNoteSpec {
+    return _noteCatalog[_defaultNoteId] ??
+        const _EarNoteSpec(
+          id: _defaultNoteId,
+          degree: "Do",
+          octave: _baseOctave,
+          label: "Do5",
+          assetPath: _defaultNoteAssetPath,
+        );
+  }
+
+  List<_EarNoteSpec> get _activeNotes {
+    final int minOctave = (_baseOctave - _lowOctaveExpansion)
+        .clamp(_assetMinOctave, _assetMaxOctave)
+        .toInt();
+    final int maxOctave = (_baseOctave + _highOctaveExpansion)
+        .clamp(_assetMinOctave, _assetMaxOctave)
+        .toInt();
+    final List<_EarNoteSpec> notes = <_EarNoteSpec>[];
+    for (int octave = minOctave; octave <= maxOctave; octave++) {
+      for (final _DegreeSpec degreeSpec in _degrees) {
+        final String noteId = _noteId(degreeSpec.degree, octave);
+        final _EarNoteSpec? note = _noteCatalog[noteId];
+        if (note != null) {
+          notes.add(note);
+        }
+      }
+    }
+    if (notes.isEmpty) {
+      notes.add(_defaultNoteSpec);
+    }
+    return notes;
+  }
+
+  List<String> get _activeNoteIds {
+    return _activeNotes
+        .map((_EarNoteSpec note) => note.id)
+        .toList(growable: false);
+  }
+
+  List<_EarNoteSpec> get _modeBChoiceNotes {
+    final List<String> fallbackIds = _activeNoteIds;
+    final Set<String> ids = (_modeBRunning && _modeBQuestions.isNotEmpty)
+        ? _modeBQuestions.toSet()
+        : fallbackIds.toSet();
+    final List<_EarNoteSpec> notes = ids.map(_resolveNote).toList(growable: false)
+      ..sort((_EarNoteSpec a, _EarNoteSpec b) {
+        final int octaveCompare = a.octave.compareTo(b.octave);
+        if (octaveCompare != 0) {
+          return octaveCompare;
+        }
+        final int degreeA = _degreeOrder[a.degree] ?? 0;
+        final int degreeB = _degreeOrder[b.degree] ?? 0;
+        return degreeA.compareTo(degreeB);
+      });
+    if (notes.isEmpty) {
+      return _activeNotes;
+    }
+    return notes;
+  }
+
+  bool get _singleOctaveMode =>
+      _lowOctaveExpansion == 0 && _highOctaveExpansion == 0;
+
+  _EarNoteSpec _resolveNote(String noteId) {
+    return _noteCatalog[noteId] ?? _defaultNoteSpec;
+  }
+
+  String _noteDisplayLabel(String noteId) {
+    final _EarNoteSpec? note = _noteCatalog[noteId];
+    if (note == null) {
+      return noteId;
+    }
+    if (_singleOctaveMode && note.octave == _baseOctave) {
+      return note.degree;
+    }
+    return note.label;
+  }
+
+  String _tonicNoteIdFor(String noteId) {
+    final int octave = _resolveNote(noteId).octave;
+    final String tonicId = _noteId("Do", octave);
+    if (_noteCatalog.containsKey(tonicId)) {
+      return tonicId;
+    }
+    return _defaultNoteId;
+  }
+
+  String get _octaveRangeSummary {
+    final int minOctave = (_baseOctave - _lowOctaveExpansion)
+        .clamp(_assetMinOctave, _assetMaxOctave)
+        .toInt();
+    final int maxOctave = (_baseOctave + _highOctaveExpansion)
+        .clamp(_assetMinOctave, _assetMaxOctave)
+        .toInt();
+    final int noteCount = _activeNoteIds.length;
+    return "Range C$minOctave-B$maxOctave ($noteCount notes)";
+  }
+
   @override
   void initState() {
     super.initState();
@@ -126,14 +273,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     super.dispose();
   }
 
-  String? get _modeACurrentDegree {
+  String? get _modeACurrentNoteId {
     if (_modeAQuestions.isEmpty || _modeAIndex >= _modeAQuestions.length) {
       return null;
     }
     return _modeAQuestions[_modeAIndex];
   }
 
-  String? get _modeBCurrentDegree {
+  String? get _modeBCurrentNoteId {
     if (_modeBQuestions.isEmpty || _modeBIndex >= _modeBQuestions.length) {
       return null;
     }
@@ -210,8 +357,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
   }
 
-  Future<void> _playDegree(String degree, {double volume = 0.9}) async {
-    final String assetPath = _degreeNoteAssetPaths[degree] ?? _defaultNoteAssetPath;
+  Future<void> _playNote(String noteId, {double volume = 0.9}) async {
+    final String assetPath = _resolveNote(noteId).assetPath;
     try {
       await _playAsset(
         _notePlayer,
@@ -239,20 +386,20 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (!_modeARunning) {
       return;
     }
-    final String? degree = _modeACurrentDegree;
-    if (degree == null) {
+    final String? noteId = _modeACurrentNoteId;
+    if (noteId == null) {
       return;
     }
 
     switch (_modeAPhase) {
       case _ModeAPhase.tonic:
-        unawaited(_playDegree("Do"));
+        unawaited(_playNote(_tonicNoteIdFor(noteId)));
         break;
       case _ModeAPhase.target:
-        unawaited(_playDegree(degree, volume: 0.94));
+        unawaited(_playNote(noteId, volume: 0.94));
         break;
       case _ModeAPhase.replay:
-        unawaited(_playDegree(degree, volume: 0.94));
+        unawaited(_playNote(noteId, volume: 0.94));
         break;
       case _ModeAPhase.think:
       case _ModeAPhase.answer:
@@ -266,11 +413,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           : const Duration(milliseconds: 500);
 
   Future<void> _playModeBPrompt({
-    required String degree,
+    required String noteId,
     required int token,
     bool requireModeBRunning = true,
   }) async {
-    await _playDegree("Do");
+    await _playNote(_tonicNoteIdFor(noteId));
     await Future<void>.delayed(_modeBPromptGap);
     if (!mounted || token != _audioSequenceToken) {
       return;
@@ -278,16 +425,16 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (requireModeBRunning && !_modeBRunning) {
       return;
     }
-    await _playDegree(degree, volume: 0.94);
+    await _playNote(noteId, volume: 0.94);
   }
 
   void _playCurrentModeBPrompt() {
-    final String? degree = _modeBCurrentDegree;
-    if (!_modeBRunning || degree == null) {
+    final String? noteId = _modeBCurrentNoteId;
+    if (!_modeBRunning || noteId == null) {
       return;
     }
     final int token = _cancelAudioSequence();
-    unawaited(_playModeBPrompt(degree: degree, token: token));
+    unawaited(_playModeBPrompt(noteId: noteId, token: token));
   }
 
   List<String> _buildQuestionSet(int count, {List<String>? seedPool}) {
@@ -295,8 +442,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       return <String>[];
     }
 
+    final List<String> defaultPool = _activeNoteIds;
     final List<String> pool = seedPool == null || seedPool.isEmpty
-        ? List<String>.from(_degrees)
+        ? List<String>.from(defaultPool)
         : List<String>.from(seedPool);
     final List<String> uniquePool = pool.toSet().toList();
     if (uniquePool.isEmpty) {
@@ -307,8 +455,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
 
     final List<String> result = <String>[];
-    if (seedPool == null && count >= _degrees.length) {
-      result.addAll(_degrees);
+    if (seedPool == null && count >= defaultPool.length) {
+      result.addAll(defaultPool);
     }
 
     while (result.length < count) {
@@ -329,13 +477,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return result;
   }
 
-  String _modeAPhaseLabel(String degree) {
+  String _modeAPhaseLabel(String noteId) {
+    final String answerLabel = _noteDisplayLabel(noteId);
+    final String tonicLabel = _noteDisplayLabel(_tonicNoteIdFor(noteId));
     return switch (_modeAPhase) {
-      _ModeAPhase.tonic => "Build tonic center (Do)",
+      _ModeAPhase.tonic => "Build tonic center ($tonicLabel)",
       _ModeAPhase.target => "Play target note",
-      _ModeAPhase.think => "Think and decide the degree",
-      _ModeAPhase.answer => "Answer: $degree",
-      _ModeAPhase.replay => "Replay correct note: $degree",
+      _ModeAPhase.think => "Think and decide the note",
+      _ModeAPhase.answer => "Answer: $answerLabel",
+      _ModeAPhase.replay => "Replay correct note: $answerLabel",
     };
   }
 
@@ -422,11 +572,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
     setState(() {
       _modeAPhase = nextPhase;
-      final String degree = _modeAQuestions[_modeAIndex];
+      final String noteId = _modeAQuestions[_modeAIndex];
       if (_modeAPhase == _ModeAPhase.answer || _modeAPhase == _ModeAPhase.replay) {
-        _modeAAnswer = degree;
+        _modeAAnswer = noteId;
       }
-      _modeAStatus = _modeAPhaseLabel(degree);
+      _modeAStatus = _modeAPhaseLabel(noteId);
     });
     _playModeAPhaseAudio();
     _scheduleModeAAdvance();
@@ -440,8 +590,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeAWatch.start();
       setState(() {
         _modeAPaused = false;
-        final String degree = _modeACurrentDegree ?? "-";
-        _modeAStatus = "Resume: ${_modeAPhaseLabel(degree)}";
+        final String? noteId = _modeACurrentNoteId;
+        _modeAStatus = noteId == null
+            ? "Resume"
+            : "Resume: ${_modeAPhaseLabel(noteId)}";
       });
       _scheduleModeAAdvance();
       return;
@@ -548,6 +700,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
 
     final String answer = _modeBQuestions[_modeBIndex];
+    final String answerLabel = _noteDisplayLabel(answer);
     final bool isCorrect = selected == answer;
     _modeBFeedbackTimer?.cancel();
 
@@ -557,14 +710,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       if (isCorrect) {
         _modeBCorrect += 1;
         _modeBFeedback = _autoPlayAnswerInModeB
-            ? "Correct: $answer (auto replay on)"
-            : "Correct: $answer";
+            ? "Correct: $answerLabel (auto replay on)"
+            : "Correct: $answerLabel";
         _modeBStatus = "Correct";
       } else {
         _modeBWrongCounts[answer] = (_modeBWrongCounts[answer] ?? 0) + 1;
         _modeBFeedback = _autoPlayAnswerInModeB
-            ? "Wrong, answer is $answer (auto replay on)"
-            : "Wrong, answer is $answer";
+            ? "Wrong, answer is $answerLabel (auto replay on)"
+            : "Wrong, answer is $answerLabel";
         _modeBStatus = _errorHintEnabled ? "Wrong (hint sound on)" : "Wrong";
       }
     });
@@ -586,7 +739,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         if (!mounted || !_modeBRunning) {
           return;
         }
-        await _playDegree(answerToReplay, volume: 0.94);
+        await _playNote(answerToReplay, volume: 0.94);
       }());
     }
 
@@ -735,6 +888,41 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     );
   }
 
+  Widget _buildOctaveExpansionSelector({
+    required String title,
+    required int selected,
+    required bool lowSide,
+    required ValueChanged<int> onSelected,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(title),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List<int>.generate(
+            _maxOctaveExpansion + 1,
+            (int index) => index,
+          ).map((int value) {
+            final String sign = value == 0
+                ? ""
+                : (lowSide ? "-" : "+");
+            final String label = value == 0 ? "0" : "$sign$value";
+            return ChoiceChip(
+              label: Text(label),
+              selected: selected == value,
+              onSelected: (_) {
+                onSelected(value);
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSubTabs() {
     final List<_SubTabItem> tabs = <_SubTabItem>[
       const _SubTabItem(index: 0, icon: Icons.home_rounded, label: "Home"),
@@ -836,6 +1024,35 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 const Text("Speed"),
                 const SizedBox(height: 6),
                 _buildSpeedSelector(),
+                const SizedBox(height: 10),
+                const Text("Octave range extension"),
+                const SizedBox(height: 6),
+                _buildOctaveExpansionSelector(
+                  title: "Add lower octaves",
+                  selected: _lowOctaveExpansion,
+                  lowSide: true,
+                  onSelected: (int value) {
+                    setState(() {
+                      _lowOctaveExpansion = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildOctaveExpansionSelector(
+                  title: "Add higher octaves",
+                  selected: _highOctaveExpansion,
+                  lowSide: false,
+                  onSelected: (int value) {
+                    setState(() {
+                      _highOctaveExpansion = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _octaveRangeSummary,
+                  style: theme.textTheme.bodySmall,
+                ),
               ],
             ),
           ),
@@ -896,7 +1113,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 LinearProgressIndicator(value: progress),
                 const SizedBox(height: 10),
                 Text("Phase: $_modeAStatus"),
-                Text("Answer display: ${_modeAAnswer ?? "Waiting"}"),
+                Text(
+                  "Answer display: ${_modeAAnswer == null ? "Waiting" : _noteDisplayLabel(_modeAAnswer!)}",
+                ),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -939,16 +1158,16 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     );
   }
 
-  ButtonStyle _modeBChoiceStyle(ThemeData theme, String degree) {
-    final String? answer = _modeBCurrentDegree;
+  ButtonStyle _modeBChoiceStyle(ThemeData theme, String noteId) {
+    final String? answer = _modeBCurrentNoteId;
     Color? backgroundColor;
     Color? foregroundColor;
 
     if (_modeBLocked && answer != null) {
-      if (degree == answer) {
+      if (noteId == answer) {
         backgroundColor = theme.colorScheme.secondaryContainer;
         foregroundColor = theme.colorScheme.onSecondaryContainer;
-      } else if (degree == _modeBSelected) {
+      } else if (noteId == _modeBSelected) {
         backgroundColor = theme.colorScheme.errorContainer;
         foregroundColor = theme.colorScheme.onErrorContainer;
       }
@@ -965,13 +1184,21 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final int total = _modeBQuestions.length;
     final int current = total == 0 ? 0 : (_modeBIndex + 1).clamp(1, total);
     final double progress = total == 0 ? 0 : current / total;
+    final List<_EarNoteSpec> choiceNotes = _modeBChoiceNotes;
+    final bool denseChoices = choiceNotes.length > 14;
+    final bool singleOctaveChoices =
+        choiceNotes.map((_EarNoteSpec note) => note.octave).toSet().length <= 1;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       children: <Widget>[
         Text("Mode B: Listen -> Choose", style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
-        const Text("Choose one from Do Re Mi Fa Sol La Ti."),
+        Text(
+          singleOctaveChoices
+              ? "Choose one from Do Re Mi Fa Sol La Ti."
+              : "Choose one from active range (${choiceNotes.length} notes).",
+        ),
         const SizedBox(height: 12),
         Card(
           child: Padding(
@@ -994,13 +1221,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _degrees.map((String degree) {
+                  children: choiceNotes.map((_EarNoteSpec note) {
                     return SizedBox(
-                      width: 92,
+                      width: denseChoices ? 82 : 92,
                       child: FilledButton(
-                        onPressed: _modeBRunning ? () => _submitModeB(degree) : null,
-                        style: _modeBChoiceStyle(theme, degree),
-                        child: Text(degree),
+                        onPressed: _modeBRunning ? () => _submitModeB(note.id) : null,
+                        style: _modeBChoiceStyle(theme, note.id),
+                        child: Text(_noteDisplayLabel(note.id)),
                       ),
                     );
                   }).toList(),
@@ -1058,7 +1285,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final String wrongText = record.wrongCounts.isEmpty
         ? "None"
         : record.wrongCounts.entries
-            .map((MapEntry<String, int> entry) => "${entry.key} x${entry.value}")
+            .map(
+              (MapEntry<String, int> entry) =>
+                  "${_noteDisplayLabel(entry.key)} x${entry.value}",
+            )
             .join("  ");
 
     return Card(
@@ -1197,6 +1427,35 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 const Text("Speed"),
                 const SizedBox(height: 6),
                 _buildSpeedSelector(),
+                const SizedBox(height: 10),
+                const Text("Octave range extension"),
+                const SizedBox(height: 6),
+                _buildOctaveExpansionSelector(
+                  title: "Add lower octaves",
+                  selected: _lowOctaveExpansion,
+                  lowSide: true,
+                  onSelected: (int value) {
+                    setState(() {
+                      _lowOctaveExpansion = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildOctaveExpansionSelector(
+                  title: "Add higher octaves",
+                  selected: _highOctaveExpansion,
+                  lowSide: false,
+                  onSelected: (int value) {
+                    setState(() {
+                      _highOctaveExpansion = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _octaveRangeSummary,
+                  style: theme.textTheme.bodySmall,
+                ),
               ],
             ),
           ),
@@ -1246,16 +1505,17 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
                   onPressed: () {
+                    final String testNoteId = _noteId("Mi", _baseOctave);
                     final int token = _cancelAudioSequence();
                     unawaited(
                       _playModeBPrompt(
-                        degree: "Mi",
+                        noteId: testNoteId,
                         token: token,
                         requireModeBRunning: false,
                       ),
                     );
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Played test prompt: Do -> Mi")),
+                      const SnackBar(content: Text("Played test prompt: Do5 -> Mi5")),
                     );
                   },
                   icon: const Icon(Icons.volume_up_rounded),
