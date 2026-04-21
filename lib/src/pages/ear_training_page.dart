@@ -19,6 +19,27 @@ extension EarTrainingSpeedExtension on EarTrainingSpeed {
   }
 }
 
+enum _ModeBPromptFlow {
+  scaleThenTarget,
+  tonicThenTarget,
+}
+
+extension _ModeBPromptFlowExtension on _ModeBPromptFlow {
+  String get label {
+    return switch (this) {
+      _ModeBPromptFlow.scaleThenTarget => "1234567 -> target",
+      _ModeBPromptFlow.tonicThenTarget => "1 -> target",
+    };
+  }
+
+  String get waitingStatus {
+    return switch (this) {
+      _ModeBPromptFlow.scaleThenTarget => "Play 1234567 + target, waiting answer",
+      _ModeBPromptFlow.tonicThenTarget => "Play tonic + target, waiting answer",
+    };
+  }
+}
+
 enum _EarMode {
   listenAndReveal,
   listenAndChoose,
@@ -116,6 +137,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   int _lowOctaveExpansion = 0;
   int _highOctaveExpansion = 0;
   EarTrainingSpeed _speed = EarTrainingSpeed.standard;
+  _ModeBPromptFlow _modeBPromptFlow = _ModeBPromptFlow.scaleThenTarget;
   bool _autoPlayAnswerInModeB = true;
   bool _autoAdvanceToNextQuestion = true;
   bool _errorHintEnabled = true;
@@ -244,6 +266,31 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       return tonicId;
     }
     return _defaultNoteId;
+  }
+
+  List<String> _scaleNoteIdsFor(String noteId) {
+    final int octave = _resolveNote(noteId).octave;
+    final List<String> noteIds = _degrees
+        .map((_DegreeSpec degreeSpec) => _noteId(degreeSpec.degree, octave))
+        .where((String id) => _noteCatalog.containsKey(id))
+        .toList(growable: false);
+    if (noteIds.isEmpty) {
+      return <String>[_tonicNoteIdFor(noteId)];
+    }
+    return noteIds;
+  }
+
+  bool _canContinueModeBPrompt({
+    required int token,
+    required bool requireModeBRunning,
+  }) {
+    if (!mounted || token != _audioSequenceToken) {
+      return false;
+    }
+    if (requireModeBRunning && !_modeBRunning) {
+      return false;
+    }
+    return true;
   }
 
   String get _octaveRangeSummary {
@@ -417,12 +464,26 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     required int token,
     bool requireModeBRunning = true,
   }) async {
-    await _playNote(_tonicNoteIdFor(noteId));
-    await Future<void>.delayed(_modeBPromptGap);
-    if (!mounted || token != _audioSequenceToken) {
-      return;
+    final List<String> leadInNotes = switch (_modeBPromptFlow) {
+      _ModeBPromptFlow.scaleThenTarget => _scaleNoteIdsFor(noteId),
+      _ModeBPromptFlow.tonicThenTarget => <String>[_tonicNoteIdFor(noteId)],
+    };
+
+    for (final String leadInNoteId in leadInNotes) {
+      if (!_canContinueModeBPrompt(
+        token: token,
+        requireModeBRunning: requireModeBRunning,
+      )) {
+        return;
+      }
+      await _playNote(leadInNoteId);
+      await Future<void>.delayed(_modeBPromptGap);
     }
-    if (requireModeBRunning && !_modeBRunning) {
+
+    if (!_canContinueModeBPrompt(
+      token: token,
+      requireModeBRunning: requireModeBRunning,
+    )) {
       return;
     }
     await _playNote(noteId, volume: 0.94);
@@ -688,7 +749,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBReplayCount = 0;
       _modeBSelected = null;
       _modeBFeedback = null;
-      _modeBStatus = "Play tonic + target, waiting answer";
+      _modeBStatus = _modeBPromptFlow.waitingStatus;
       _modeBWrongCounts.clear();
     });
     _playCurrentModeBPrompt();
@@ -767,7 +828,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBLocked = false;
       _modeBSelected = null;
       _modeBFeedback = null;
-      _modeBStatus = "Play tonic + target, waiting answer";
+      _modeBStatus = _modeBPromptFlow.waitingStatus;
     });
     _playCurrentModeBPrompt();
   }
@@ -882,6 +943,30 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             setState(() {
               _speed = speed;
             });
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildModeBPromptFlowSelector() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _ModeBPromptFlow.values.map((_ModeBPromptFlow flow) {
+        return ChoiceChip(
+          label: Text(flow.label),
+          selected: _modeBPromptFlow == flow,
+          onSelected: (_) {
+            setState(() {
+              _modeBPromptFlow = flow;
+              if (_modeBRunning && !_modeBLocked) {
+                _modeBStatus = _modeBPromptFlow.waitingStatus;
+              }
+            });
+            if (_modeBRunning && !_modeBLocked) {
+              _playCurrentModeBPrompt();
+            }
           },
         );
       }).toList(),
@@ -1024,6 +1109,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 const Text("Speed"),
                 const SizedBox(height: 6),
                 _buildSpeedSelector(),
+                const SizedBox(height: 10),
+                const Text("Mode B prompt flow"),
+                const SizedBox(height: 6),
+                _buildModeBPromptFlowSelector(),
                 const SizedBox(height: 10),
                 const Text("Octave range extension"),
                 const SizedBox(height: 6),
@@ -1199,6 +1288,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
               ? "Choose one from Do Re Mi Fa Sol La Ti."
               : "Choose one from active range (${choiceNotes.length} notes).",
         ),
+        const SizedBox(height: 4),
+        Text("Prompt flow: ${_modeBPromptFlow.label}"),
         const SizedBox(height: 12),
         Card(
           child: Padding(
@@ -1428,6 +1519,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 const SizedBox(height: 6),
                 _buildSpeedSelector(),
                 const SizedBox(height: 10),
+                const Text("Mode B prompt flow"),
+                const SizedBox(height: 6),
+                _buildModeBPromptFlowSelector(),
+                const SizedBox(height: 10),
                 const Text("Octave range extension"),
                 const SizedBox(height: 6),
                 _buildOctaveExpansionSelector(
@@ -1515,7 +1610,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                       ),
                     );
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Played test prompt: Do5 -> Mi5")),
+                      SnackBar(
+                        content: Text(
+                          "Played test prompt (${_modeBPromptFlow.label})",
+                        ),
+                      ),
                     );
                   },
                   icon: const Icon(Icons.volume_up_rounded),

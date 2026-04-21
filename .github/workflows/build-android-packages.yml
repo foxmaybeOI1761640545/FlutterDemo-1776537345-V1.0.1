@@ -81,13 +81,43 @@ jobs:
           mkdir -p "${HOME}/.android"
           printf '%s' "${ANDROID_DEBUG_KEYSTORE_BASE64}" | base64 --decode > "${HOME}/.android/debug.keystore"
 
-      - name: Verify signing fingerprint
+      - name: Verify and pin signing fingerprint
+        env:
+          EXPECTED_ANDROID_DEBUG_KEYSTORE_SHA256: ${{ secrets.ANDROID_DEBUG_KEYSTORE_SHA256 }}
         run: |
           keytool -list -v \
             -keystore "${HOME}/.android/debug.keystore" \
             -alias androiddebugkey \
             -storepass android \
             -keypass android | grep -E 'Alias name:|SHA1:|SHA256:'
+
+          FINGERPRINT_SHA256="$(keytool -list -v \
+            -keystore "${HOME}/.android/debug.keystore" \
+            -alias androiddebugkey \
+            -storepass android \
+            -keypass android \
+            | awk -F': ' '/SHA256:/ {print $2; exit}')"
+
+          if [ -z "${FINGERPRINT_SHA256}" ]; then
+            echo "Cannot parse SHA256 fingerprint from restored keystore."
+            exit 1
+          fi
+
+          echo "ANDROID_SIGNING_SHA256=${FINGERPRINT_SHA256}" >> "$GITHUB_ENV"
+          echo "Resolved Android signing SHA256: ${FINGERPRINT_SHA256}"
+
+          if [ -n "${EXPECTED_ANDROID_DEBUG_KEYSTORE_SHA256}" ]; then
+            EXPECTED_NORMALIZED="$(echo "${EXPECTED_ANDROID_DEBUG_KEYSTORE_SHA256}" | tr '[:lower:]' '[:upper:]' | tr -d '[:space:]:')"
+            ACTUAL_NORMALIZED="$(echo "${FINGERPRINT_SHA256}" | tr '[:lower:]' '[:upper:]' | tr -d '[:space:]:')"
+            if [ "${EXPECTED_NORMALIZED}" != "${ACTUAL_NORMALIZED}" ]; then
+              echo "Android signing fingerprint mismatch."
+              echo "Expected: ${EXPECTED_ANDROID_DEBUG_KEYSTORE_SHA256}"
+              echo "Actual:   ${FINGERPRINT_SHA256}"
+              exit 1
+            fi
+          else
+            echo "Secret ANDROID_DEBUG_KEYSTORE_SHA256 is not set; strict fingerprint pinning skipped."
+          fi
 
       - name: Install dependencies
         run: flutter pub get
@@ -104,6 +134,15 @@ jobs:
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/${APP_NAME}-${APP_VERSION}-android-release.apk"
           cp build/app/outputs/bundle/release/app-release.aab "dist/${APP_NAME}-${APP_VERSION}-android-release.aab"
+          printf '%s\n' "${ANDROID_SIGNING_SHA256}" > "dist/${APP_NAME}-${APP_VERSION}-android-signing-sha256.txt"
+
+      - name: Write Android signing summary
+        run: |
+          {
+            echo "## Android signing fingerprint"
+            echo ""
+            echo "- SHA256: \`${ANDROID_SIGNING_SHA256}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
@@ -118,4 +157,5 @@ jobs:
           files: |
             dist/*-android-release.apk
             dist/*-android-release.aab
+            dist/*-android-signing-sha256.txt
           fail_on_unmatched_files: true
