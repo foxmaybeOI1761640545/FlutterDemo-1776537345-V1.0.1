@@ -30,25 +30,46 @@ jobs:
         run: flutter pub get
 
       - name: Analyze source with annotations
+        id: analyze
+        continue-on-error: true
         shell: bash
         run: |
           set +e
           flutter analyze --no-fatal-infos --no-fatal-warnings --machine > analyze.log 2>&1
           status=$?
           python .github/scripts/emit_github_annotations.py dart-machine analyze.log
-          if [ "$status" -ne 0 ]; then
-            tail -n 200 analyze.log
-            exit "$status"
-          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Build web with annotations
+        id: build_web
+        continue-on-error: true
         shell: bash
         run: |
           set +e
           flutter build web --release > build-web.log 2>&1
           status=$?
           python .github/scripts/emit_github_annotations.py flutter-build build-web.log
-          if [ "$status" -ne 0 ]; then
-            tail -n 200 build-web.log
-            exit "$status"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Run widget tests with annotations
+        id: widget_test
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          flutter test > widget-test.log 2>&1
+          status=$?
+          python .github/scripts/emit_github_annotations.py log-tail widget-test.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Fail if diagnostics found issues
+        shell: bash
+        run: |
+          if [ "${{ steps.analyze.outputs.status }}" != "0" ] || \
+             [ "${{ steps.build_web.outputs.status }}" != "0" ] || \
+             [ "${{ steps.widget_test.outputs.status }}" != "0" ]; then
+            exit 1
           fi

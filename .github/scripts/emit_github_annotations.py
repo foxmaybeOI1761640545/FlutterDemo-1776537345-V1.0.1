@@ -88,7 +88,7 @@ def from_flutter_build(log_path: Path) -> int:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print("usage: emit_github_annotations.py <dart-machine|flutter-build> <log-path>", file=sys.stderr)
+        print("usage: emit_github_annotations.py <dart-machine|flutter-build|log-tail> <log-path>", file=sys.stderr)
         return 2
 
     mode = sys.argv[1]
@@ -98,6 +98,13 @@ def main() -> int:
         count = from_dart_machine(log_path)
     elif mode == "flutter-build":
         count = from_flutter_build(log_path)
+    elif mode == "log-tail":
+        emit_log_tail(
+            level="warning",
+            log_path=log_path,
+            title="raw-log-tail",
+        )
+        return 0
     else:
         print(f"unsupported mode: {mode}", file=sys.stderr)
         return 2
