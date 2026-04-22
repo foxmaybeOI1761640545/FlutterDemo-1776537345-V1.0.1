@@ -388,7 +388,7 @@ class _MainPanel extends StatelessWidget {
                   label: Text(
                     subdivision.labelFor(language),
                     maxLines: 1,
-                    overflow: TextOverflow.visible,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   showCheckmark: false,
                   labelPadding: const EdgeInsets.symmetric(horizontal: 4),
