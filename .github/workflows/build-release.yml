@@ -55,7 +55,7 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --web-renderer html --pwa-strategy=none
+        run: flutter build web --release --pwa-strategy=none
 
       - name: Package build output
         run: tar -czf flutter-web-build.tar.gz -C build web
