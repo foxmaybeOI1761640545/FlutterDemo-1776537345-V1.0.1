@@ -386,6 +386,7 @@ class _HomeShellState extends State<HomeShell> {
                     item.label,
                     maxLines: 1,
                     softWrap: false,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

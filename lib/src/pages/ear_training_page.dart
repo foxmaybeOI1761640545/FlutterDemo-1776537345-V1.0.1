@@ -1759,6 +1759,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                   item.label,
                   maxLines: 1,
                   softWrap: false,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
