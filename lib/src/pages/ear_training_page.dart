@@ -631,12 +631,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       assetPath,
       fallback: fallbackDuration,
     );
-    final PlayerMode preferredMode = expectedDuration >= const Duration(milliseconds: 900)
-        ? PlayerMode.mediaPlayer
-        : PlayerMode.lowLatency;
-    final List<PlayerMode> tryModes = preferredMode == PlayerMode.lowLatency
-        ? <PlayerMode>[PlayerMode.lowLatency, PlayerMode.mediaPlayer]
-        : <PlayerMode>[PlayerMode.mediaPlayer, PlayerMode.lowLatency];
+    final List<PlayerMode> tryModes = _preferredPlayerModes(expectedDuration);
     await player.stop();
     Object? lastError;
     for (final PlayerMode mode in tryModes) {
@@ -655,6 +650,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       throw lastError;
     }
     throw StateError("Audio playback failed without error: $assetPath");
+  }
+
+  List<PlayerMode> _preferredPlayerModes(Duration expectedDuration) {
+    if (expectedDuration >= const Duration(milliseconds: 900)) {
+      return <PlayerMode>[PlayerMode.mediaPlayer, PlayerMode.lowLatency];
+    }
+    return <PlayerMode>[PlayerMode.lowLatency, PlayerMode.mediaPlayer];
   }
 
   Duration _playbackTimeoutFor(Duration duration) {
@@ -692,32 +694,40 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
   }
 
-  Future<void> _playAssetAndWait(
+  Future<bool> _playAssetAndWait(
     AudioPlayer player, {
     required String assetPath,
     required double volume,
-    required Duration maxDuration,
     required Duration fallbackDuration,
   }) async {
     await _ensurePlatformAudioContext();
+    final Duration expectedDuration = await _assetDuration(
+      assetPath,
+      fallback: fallbackDuration,
+    );
+    final Duration timeout = _playbackTimeoutFor(expectedDuration);
+    final List<PlayerMode> tryModes = _preferredPlayerModes(expectedDuration);
     await player.stop();
-    try {
-      final Future<void> completed = player.onPlayerComplete.first;
-      await player.play(
-        AssetSource(assetPath),
-        volume: volume,
-        mode: PlayerMode.mediaPlayer,
-      );
-      await completed.timeout(maxDuration, onTimeout: () => Future<void>.value());
-    } catch (_) {
-      await _playAsset(
-        player,
-        assetPath: assetPath,
-        volume: volume,
-        fallbackDuration: fallbackDuration,
-      );
-      await Future<void>.delayed(maxDuration);
+    Object? lastError;
+    for (final PlayerMode mode in tryModes) {
+      try {
+        final Future<void> completed = player.onPlayerComplete.first;
+        await player.play(
+          AssetSource(assetPath),
+          volume: volume,
+          mode: mode,
+        );
+        await completed.timeout(timeout, onTimeout: () => Future<void>.value());
+        return true;
+      } catch (error) {
+        lastError = error;
+        await player.stop();
+      }
     }
+    if (lastError != null) {
+      debugPrint("Ear training wait playback failed: $lastError");
+    }
+    return false;
   }
 
   Future<void> _playNote(String noteId, {double volume = 0.9}) async {
@@ -739,16 +749,16 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     double volume = 0.9,
   }) async {
     final String assetPath = _resolveNote(noteId).assetPath;
-    final Duration expectedDuration = await _noteDurationById(noteId);
-    final Duration waitTimeout = _playbackTimeoutFor(expectedDuration);
     try {
-      await _playAssetAndWait(
+      final bool played = await _playAssetAndWait(
         _notePlayer,
         assetPath: assetPath,
         volume: volume.clamp(0, 1).toDouble(),
-        maxDuration: waitTimeout,
         fallbackDuration: _defaultNoteDuration,
       );
+      if (!played) {
+        debugPrint("Ear training note wait playback did not complete: $assetPath");
+      }
     } catch (error) {
       debugPrint("Ear training note wait playback failed: $error");
     }
