@@ -2071,7 +2071,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           : const Color(0xFF7A2724),
       _ModeBDetailTone.waiting => theme.colorScheme.onSecondaryContainer,
       _ModeBDetailTone.idle => theme.colorScheme.onSurface.withOpacity(0.72),
-    }
+    };
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
