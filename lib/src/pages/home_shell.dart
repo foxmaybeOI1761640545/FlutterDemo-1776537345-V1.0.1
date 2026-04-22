@@ -2,6 +2,7 @@ import "dart:math" as math;
 
 import "package:flutter/material.dart";
 
+import "../l10n/app_locale.dart";
 import "../metronome_engine.dart";
 import "../models.dart";
 import "ear_training_page.dart";
@@ -174,28 +175,36 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> _saveCurrentPreset() async {
     final TextEditingController controller = TextEditingController(
-      text: "Preset ${widget.presets.length + 1}",
+      text: context.tr(
+        zh: "预设 ${widget.presets.length + 1}",
+        en: "Preset ${widget.presets.length + 1}",
+      ),
     );
     final String? name = await showDialog<String>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Save Preset"),
+          title: Text(context.tr(zh: "保存预设", en: "Save Preset")),
           content: TextField(
             controller: controller,
             autofocus: true,
             maxLength: 24,
-            decoration: const InputDecoration(hintText: "Example: Slow C Major"),
+            decoration: InputDecoration(
+              hintText: context.tr(
+                zh: "示例：慢速 C 大调",
+                en: "Example: Slow C Major",
+              ),
+            ),
             onSubmitted: (String value) => Navigator.of(context).pop(value.trim()),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Cancel"),
+              child: Text(context.tr(zh: "取消", en: "Cancel")),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-              child: const Text("Save"),
+              child: Text(context.tr(zh: "保存", en: "Save")),
             ),
           ],
         );
@@ -223,7 +232,14 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Preset saved: ${preset.name}")),
+      SnackBar(
+        content: Text(
+          context.tr(
+            zh: "预设已保存：${preset.name}",
+            en: "Preset saved: ${preset.name}",
+          ),
+        ),
+      ),
     );
   }
 
@@ -264,18 +280,21 @@ class _HomeShellState extends State<HomeShell> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Clear Local Data"),
-          content: const Text(
-            "This resets settings and removes all presets. This action cannot be undone.",
+          title: Text(context.tr(zh: "清除本地数据", en: "Clear Local Data")),
+          content: Text(
+            context.tr(
+              zh: "该操作会重置设置并删除全部预设，且无法撤销。",
+              en: "This resets settings and removes all presets. This action cannot be undone.",
+            ),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text("Cancel"),
+              child: Text(context.tr(zh: "取消", en: "Cancel")),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text("Clear"),
+              child: Text(context.tr(zh: "清除", en: "Clear")),
             ),
           ],
         );
@@ -313,11 +332,23 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  Widget _buildMetronomeSubTabs() {
+  Widget _buildMetronomeSubTabs(BuildContext context) {
     final List<_MetronomeSubTabItem> tabs = <_MetronomeSubTabItem>[
-      const _MetronomeSubTabItem(index: 0, icon: Icons.speed_rounded, label: "Metronome"),
-      const _MetronomeSubTabItem(index: 1, icon: Icons.library_music_rounded, label: "Presets"),
-      const _MetronomeSubTabItem(index: 2, icon: Icons.settings_rounded, label: "Settings"),
+      _MetronomeSubTabItem(
+        index: 0,
+        icon: Icons.speed_rounded,
+        label: context.tr(zh: "节拍器", en: "Metronome"),
+      ),
+      _MetronomeSubTabItem(
+        index: 1,
+        icon: Icons.library_music_rounded,
+        label: context.tr(zh: "预设", en: "Presets"),
+      ),
+      _MetronomeSubTabItem(
+        index: 2,
+        icon: Icons.settings_rounded,
+        label: context.tr(zh: "设置", en: "Settings"),
+      ),
     ];
 
     return SafeArea(
@@ -356,7 +387,7 @@ class _HomeShellState extends State<HomeShell> {
   Widget _buildMetronomeWorkspace(BuildContext context) {
     return Column(
       children: <Widget>[
-        _buildMetronomeSubTabs(),
+        _buildMetronomeSubTabs(context),
         Expanded(
           child: MediaQuery.removePadding(
             context: context,
@@ -366,6 +397,7 @@ class _HomeShellState extends State<HomeShell> {
               children: <Widget>[
                 MetronomePage(
                   config: _config,
+                  language: widget.settings.language,
                   isPlaying: _isPlaying,
                   activeBeat: _activeBeat,
                   activeSubTick: _activeSubTick,
@@ -415,14 +447,14 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _mainTab,
         onDestinationSelected: _switchMainTab,
-        destinations: const <NavigationDestination>[
+        destinations: <NavigationDestination>[
           NavigationDestination(
-            icon: Icon(Icons.hearing_rounded),
-            label: "Ear",
+            icon: const Icon(Icons.hearing_rounded),
+            label: context.tr(zh: "听音", en: "Ear"),
           ),
           NavigationDestination(
-            icon: Icon(Icons.speed_rounded),
-            label: "Metronome",
+            icon: const Icon(Icons.speed_rounded),
+            label: context.tr(zh: "节拍器", en: "Metronome"),
           ),
         ],
       ),

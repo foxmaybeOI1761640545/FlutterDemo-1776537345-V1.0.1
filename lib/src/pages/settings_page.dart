@@ -1,5 +1,6 @@
-﻿import "package:flutter/material.dart";
+import "package:flutter/material.dart";
 
+import "../l10n/app_locale.dart";
 import "../models.dart";
 
 class SettingsPage extends StatelessWidget {
@@ -18,6 +19,7 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
+    final AppLanguage language = context.appLanguage;
     final bool isDark = theme.brightness == Brightness.dark;
     final List<Color> backgroundGradient = isDark
         ? <Color>[
@@ -46,7 +48,10 @@ class SettingsPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: <Widget>[
-                Text("Settings", style: theme.textTheme.headlineSmall),
+                Text(
+                  context.tr(zh: "设置", en: "Settings"),
+                  style: theme.textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 12),
                 Card(
                   child: Padding(
@@ -54,7 +59,10 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("Audio", style: theme.textTheme.titleMedium),
+                        Text(
+                          context.tr(zh: "音频", en: "Audio"),
+                          style: theme.textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 10),
                         Row(
                           children: <Widget>[
@@ -82,14 +90,17 @@ class SettingsPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text("Tone", style: theme.textTheme.titleSmall),
+                        Text(
+                          context.tr(zh: "音色", en: "Tone"),
+                          style: theme.textTheme.titleSmall,
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: MetronomeTone.values.map((MetronomeTone tone) {
                             return ChoiceChip(
-                              label: Text(tone.label),
+                              label: Text(tone.labelFor(language)),
                               selected: tone == settings.tone,
                               onSelected: (_) {
                                 onSettingsChanged(settings.copyWith(tone: tone));
@@ -108,9 +119,17 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("Default Parameters", style: theme.textTheme.titleMedium),
+                        Text(
+                          context.tr(zh: "默认参数", en: "Default Parameters"),
+                          style: theme.textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 10),
-                        Text("Default BPM: ${settings.defaultBpm}"),
+                        Text(
+                          context.tr(
+                            zh: "默认 BPM: ${settings.defaultBpm}",
+                            en: "Default BPM: ${settings.defaultBpm}",
+                          ),
+                        ),
                         Slider(
                           value: settings.defaultBpm.toDouble(),
                           min: kMinBpm.toDouble(),
@@ -124,7 +143,10 @@ class SettingsPage extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 6),
-                        Text("Default Time Signature", style: theme.textTheme.titleSmall),
+                        Text(
+                          context.tr(zh: "默认拍号", en: "Default Time Signature"),
+                          style: theme.textTheme.titleSmall,
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -142,14 +164,17 @@ class SettingsPage extends StatelessWidget {
                           }).toList(),
                         ),
                         const SizedBox(height: 8),
-                        Text("Default Subdivision", style: theme.textTheme.titleSmall),
+                        Text(
+                          context.tr(zh: "默认切分", en: "Default Subdivision"),
+                          style: theme.textTheme.titleSmall,
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: Subdivision.values.map((Subdivision item) {
                             return ChoiceChip(
-                              label: Text(item.label),
+                              label: Text(item.labelFor(language)),
                               selected: item == settings.defaultSubdivision,
                               onSelected: (_) {
                                 onSettingsChanged(
@@ -170,10 +195,43 @@ class SettingsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text("UI & Data", style: theme.textTheme.titleMedium),
+                        Text(
+                          context.tr(zh: "界面与数据", en: "UI & Data"),
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          context.tr(zh: "语言", en: "Language"),
+                          style: theme.textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            ChoiceChip(
+                              label: Text(context.tr(zh: "中文", en: "Chinese")),
+                              selected: settings.language == AppLanguage.zh,
+                              onSelected: (_) {
+                                onSettingsChanged(
+                                  settings.copyWith(language: AppLanguage.zh),
+                                );
+                              },
+                            ),
+                            ChoiceChip(
+                              label: Text(context.tr(zh: "英文", en: "English")),
+                              selected: settings.language == AppLanguage.en,
+                              onSelected: (_) {
+                                onSettingsChanged(
+                                  settings.copyWith(language: AppLanguage.en),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text("Dark theme"),
+                          title: Text(context.tr(zh: "深色主题", en: "Dark Theme")),
                           value: settings.darkTheme,
                           onChanged: (bool value) {
                             onSettingsChanged(settings.copyWith(darkTheme: value));
@@ -181,7 +239,12 @@ class SettingsPage extends StatelessWidget {
                         ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text("Visual hints (highlight active beat)"),
+                          title: Text(
+                            context.tr(
+                              zh: "视觉提示（高亮当前拍）",
+                              en: "Visual Hints (Highlight Active Beat)",
+                            ),
+                          ),
                           value: settings.visualHints,
                           onChanged: (bool value) {
                             onSettingsChanged(settings.copyWith(visualHints: value));
@@ -191,16 +254,21 @@ class SettingsPage extends StatelessWidget {
                         FilledButton.tonalIcon(
                           onPressed: onClearLocalData,
                           icon: const Icon(Icons.cleaning_services_rounded),
-                          label: const Text("Clear local data"),
+                          label: Text(
+                            context.tr(zh: "清除本地数据", en: "Clear Local Data"),
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          "Offline mode. No account or network required.",
+                          context.tr(
+                            zh: "离线模式，无需账号和网络。",
+                            en: "Offline mode. No account or network required.",
+                          ),
                           style: theme.textTheme.bodySmall,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "About: PulseBeat MVP v2.0.9",
+                          context.tr(zh: "关于：PulseBeat", en: "About: PulseBeat"),
                           style: theme.textTheme.bodySmall,
                         ),
                       ],

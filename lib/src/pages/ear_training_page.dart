@@ -7,18 +7,22 @@ import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 
+import "../l10n/app_locale.dart";
+
 enum EarTrainingSpeed {
   slow,
   standard,
 }
 
 extension EarTrainingSpeedExtension on EarTrainingSpeed {
-  String get label {
+  String labelFor(AppLanguage language) {
     return switch (this) {
-      EarTrainingSpeed.slow => "Slow",
-      EarTrainingSpeed.standard => "Standard",
+      EarTrainingSpeed.slow => language == AppLanguage.zh ? "慢速" : "Slow",
+      EarTrainingSpeed.standard => language == AppLanguage.zh ? "标准" : "Standard",
     };
   }
+
+  String get label => labelFor(AppLanguage.zh);
 }
 
 enum _ModeBPromptFlow {
@@ -26,12 +30,16 @@ enum _ModeBPromptFlow {
 }
 
 extension _ModeBPromptFlowExtension on _ModeBPromptFlow {
-  String get label {
-    return "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do";
+  String labelFor(AppLanguage language) {
+    return language == AppLanguage.zh
+        ? "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do"
+        : "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do";
   }
 
-  String get waitingStatus {
-    return "Play 12345678 1 1 + target(Re~Do), waiting answer";
+  String waitingStatusFor(AppLanguage language) {
+    return language == AppLanguage.zh
+        ? "播放 12345678 1 1 + 目标音(Re~Do)，等待作答"
+        : "Play 12345678 1 1 + target(Re~Do), waiting answer";
   }
 }
 
@@ -167,7 +175,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   bool _modeAPaused = false;
   bool _modeAAutoPausedByVisibility = false;
   int _modeAReplayCount = 0;
-  String _modeAStatus = "Not started";
+  String _modeAStatus = "未开始";
   String? _modeAAnswer;
 
   final Stopwatch _modeBWatch = Stopwatch();
@@ -182,7 +190,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   int _modeBFeedbackToken = 0;
   int _modeBCorrect = 0;
   int _modeBReplayCount = 0;
-  String _modeBStatus = "Not started";
+  String _modeBStatus = "未开始";
   String? _modeBSelected;
   String? _modeBFeedback;
   final Map<String, int> _modeBWrongCounts = <String, int>{};
@@ -196,6 +204,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       <String, Future<Duration>>{};
   Future<void>? _iosAudioContextLoader;
   bool _iosAudioContextConfigured = false;
+
+  AppLanguage get _language => context.appLanguage;
+
+  String _t({
+    required String zh,
+    required String en,
+  }) {
+    return _language == AppLanguage.zh ? zh : en;
+  }
 
   bool get _isIOSPlatform =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
@@ -598,7 +615,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     setState(() {
       _modeAPaused = true;
       _modeAAutoPausedByVisibility = true;
-      _modeAStatus = "Paused";
+      _modeAStatus = _t(zh: "已暂停", en: "Paused");
     });
   }
 
@@ -612,8 +629,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeAAutoPausedByVisibility = false;
       final String? noteId = _modeACurrentNoteId;
       _modeAStatus = noteId == null
-          ? "Resume"
-          : "Resume: ${_modeAPhaseLabel(noteId)}";
+          ? _t(zh: "继续", en: "Resume")
+          : _t(
+              zh: "继续：${_modeAPhaseLabel(noteId)}",
+              en: "Resume: ${_modeAPhaseLabel(noteId)}",
+            );
     });
     _playModeAPhaseAudio();
     _scheduleModeAAdvance();
@@ -630,7 +650,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBPaused = true;
       _modeBAutoPausedByVisibility = true;
       _modeBPromptReadyForAnswer = false;
-      _modeBStatus = "Paused";
+      _modeBStatus = _t(zh: "已暂停", en: "Paused");
     });
   }
 
@@ -655,7 +675,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     setState(() {
       _modeBPaused = false;
       _modeBAutoPausedByVisibility = false;
-      _modeBStatus = _modeBLocked ? "Answer checked" : _modeBPromptFlow.waitingStatus;
+      _modeBStatus = _modeBLocked
+          ? _t(zh: "已核对答案", en: "Answer checked")
+          : _modeBPromptFlow.waitingStatusFor(_language);
     });
     if (_modeBLocked) {
       if (_autoAdvanceToNextQuestion) {
@@ -982,7 +1004,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       if (requireModeBRunning) {
         setState(() {
           _modeBPromptReadyForAnswer = false;
-          _modeBStatus = "Prompt playback failed, tap Replay Prompt";
+          _modeBStatus = _t(
+            zh: "提示播放失败，请点击“重播提示”",
+            en: "Prompt playback failed, tap Replay Prompt",
+          );
         });
       }
       return;
@@ -997,7 +1022,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (requireModeBRunning) {
       setState(() {
         _modeBPromptReadyForAnswer = true;
-        _modeBStatus = "Prompt completed, choose answer";
+        _modeBStatus = _t(zh: "提示已播放完成，请作答", en: "Prompt completed, choose answer");
       });
     }
   }
@@ -1010,7 +1035,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final int token = _cancelAudioSequence();
     setState(() {
       _modeBPromptReadyForAnswer = false;
-      _modeBStatus = "Prompt playing...";
+      _modeBStatus = _t(zh: "提示播放中...", en: "Prompt playing...");
     });
     unawaited(_playModeBPrompt(noteId: noteId, token: token));
   }
@@ -1059,11 +1084,17 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final String answerLabel = _noteDisplayLabel(noteId);
     final String tonicLabel = _noteDisplayLabel(_tonicNoteIdFor(noteId));
     return switch (_modeAPhase) {
-      _ModeAPhase.tonic => "Build tonic center ($tonicLabel)",
-      _ModeAPhase.target => "Play target note",
-      _ModeAPhase.think => "Think and decide the note",
-      _ModeAPhase.answer => "Answer: $answerLabel",
-      _ModeAPhase.replay => "Replay correct note: $answerLabel",
+      _ModeAPhase.tonic => _t(
+          zh: "建立主音中心（$tonicLabel）",
+          en: "Build tonic center ($tonicLabel)",
+        ),
+      _ModeAPhase.target => _t(zh: "播放目标音", en: "Play target note"),
+      _ModeAPhase.think => _t(zh: "思考并判断音名", en: "Think and decide the note"),
+      _ModeAPhase.answer => _t(zh: "答案：$answerLabel", en: "Answer: $answerLabel"),
+      _ModeAPhase.replay => _t(
+          zh: "重播正确音：$answerLabel",
+          en: "Replay correct note: $answerLabel",
+        ),
     };
   }
 
@@ -1242,8 +1273,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         _modeAAutoPausedByVisibility = false;
         final String? noteId = _modeACurrentNoteId;
         _modeAStatus = noteId == null
-            ? "Resume"
-            : "Resume: ${_modeAPhaseLabel(noteId)}";
+            ? _t(zh: "继续", en: "Resume")
+            : _t(
+                zh: "继续：${_modeAPhaseLabel(noteId)}",
+                en: "Resume: ${_modeAPhaseLabel(noteId)}",
+              );
       });
       _scheduleModeAAdvance();
       return;
@@ -1255,7 +1289,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     setState(() {
       _modeAPaused = true;
       _modeAAutoPausedByVisibility = false;
-      _modeAStatus = "Paused";
+      _modeAStatus = _t(zh: "已暂停", en: "Paused");
     });
   }
 
@@ -1284,7 +1318,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeARunning = false;
       _modeAPaused = false;
       _modeAAutoPausedByVisibility = false;
-      _modeAStatus = "Stopped";
+      _modeAStatus = _t(zh: "已停止", en: "Stopped");
     });
   }
 
@@ -1307,7 +1341,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeARunning = false;
       _modeAPaused = false;
       _modeAAutoPausedByVisibility = false;
-      _modeAStatus = "Finished";
+      _modeAStatus = _t(zh: "已完成", en: "Finished");
       _todayCompletedSets += 1;
       _todayTrainingDuration += record.duration;
       _latestModeARecord = record;
@@ -1354,7 +1388,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBReplayCount = 0;
       _modeBSelected = null;
       _modeBFeedback = null;
-      _modeBStatus = _modeBPromptFlow.waitingStatus;
+      _modeBStatus = _modeBPromptFlow.waitingStatusFor(_language);
       _modeBWrongCounts.clear();
     });
     _syncPlaybackWithVisibility();
@@ -1382,15 +1416,26 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       if (isCorrect) {
         _modeBCorrect += 1;
         _modeBFeedback = _autoPlayAnswerInModeB
-            ? "Correct: $answerLabel (auto replay on)"
-            : "Correct: $answerLabel";
-        _modeBStatus = "Correct";
+            ? _t(
+                zh: "正确：$answerLabel（自动回放已开启）",
+                en: "Correct: $answerLabel (auto replay on)",
+              )
+            : _t(zh: "正确：$answerLabel", en: "Correct: $answerLabel");
+        _modeBStatus = _t(zh: "正确", en: "Correct");
       } else {
         _modeBWrongCounts[answer] = (_modeBWrongCounts[answer] ?? 0) + 1;
         _modeBFeedback = _autoPlayAnswerInModeB
-            ? "Wrong, answer is $answerLabel (auto replay on)"
-            : "Wrong, answer is $answerLabel";
-        _modeBStatus = _errorHintEnabled ? "Wrong (hint sound on)" : "Wrong";
+            ? _t(
+                zh: "错误，正确答案是 $answerLabel（自动回放已开启）",
+                en: "Wrong, answer is $answerLabel (auto replay on)",
+              )
+            : _t(
+                zh: "错误，正确答案是 $answerLabel",
+                en: "Wrong, answer is $answerLabel",
+              );
+        _modeBStatus = _errorHintEnabled
+            ? _t(zh: "错误（提示音已开启）", en: "Wrong (hint sound on)")
+            : _t(zh: "错误", en: "Wrong");
       }
     });
 
@@ -1452,7 +1497,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBPromptReadyForAnswer = false;
       _modeBSelected = null;
       _modeBFeedback = null;
-      _modeBStatus = _modeBPromptFlow.waitingStatus;
+      _modeBStatus = _modeBPromptFlow.waitingStatusFor(_language);
     });
     _playCurrentModeBPrompt();
   }
@@ -1478,7 +1523,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBAutoPausedByVisibility = false;
       _modeBPromptReadyForAnswer = false;
       _modeBLocked = false;
-      _modeBStatus = "Finished";
+      _modeBStatus = _t(zh: "已完成", en: "Finished");
       _todayCompletedSets += 1;
       _todayTrainingDuration += record.duration;
       _latestModeBRecord = record;
@@ -1501,7 +1546,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _modeBAutoPausedByVisibility = false;
       _modeBPromptReadyForAnswer = false;
       _modeBLocked = false;
-      _modeBStatus = "Stopped";
+      _modeBStatus = _t(zh: "已停止", en: "Stopped");
     });
   }
 
@@ -1511,7 +1556,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
     setState(() {
       _modeBReplayCount += 1;
-      _modeBStatus = "Replayed current prompt";
+      _modeBStatus = _t(zh: "已重播当前提示", en: "Replayed current prompt");
     });
     _playCurrentModeBPrompt();
   }
@@ -1554,16 +1599,16 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Delete History Item"),
-          content: const Text("Delete this training record?"),
+          title: Text(_t(zh: "删除历史记录", en: "Delete History Item")),
+          content: Text(_t(zh: "删除这条训练记录吗？", en: "Delete this training record?")),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text("Cancel"),
+              child: Text(_t(zh: "取消", en: "Cancel")),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text("Delete"),
+              child: Text(_t(zh: "删除", en: "Delete")),
             ),
           ],
         );
@@ -1586,16 +1631,18 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Clear History"),
-          content: const Text("Delete all recent history records?"),
+          title: Text(_t(zh: "清空历史", en: "Clear History")),
+          content: Text(
+            _t(zh: "删除最近所有训练记录吗？", en: "Delete all recent history records?"),
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text("Cancel"),
+              child: Text(_t(zh: "取消", en: "Cancel")),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text("Clear"),
+              child: Text(_t(zh: "清空", en: "Clear")),
             ),
           ],
         );
@@ -1625,7 +1672,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       runSpacing: 8,
       children: <int>[10, 20].map((int count) {
         return ChoiceChip(
-          label: Text("$count Q"),
+          label: Text(_t(zh: "$count 题", en: "$count Q")),
           selected: _questionCount == count,
           onSelected: (_) {
             setState(() {
@@ -1643,7 +1690,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       runSpacing: 8,
       children: EarTrainingSpeed.values.map((EarTrainingSpeed speed) {
         return ChoiceChip(
-          label: Text(speed.label),
+          label: Text(speed.labelFor(_language)),
           selected: _speed == speed,
           onSelected: (_) {
             setState(() {
@@ -1660,18 +1707,26 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       spacing: 8,
       runSpacing: 8,
       children: <Widget>[
-        Chip(label: Text(_modeBPromptFlow.label)),
+        Chip(label: Text(_modeBPromptFlow.labelFor(_language))),
       ],
     );
   }
 
   Widget _buildSubTabs() {
     final List<_SubTabItem> tabs = <_SubTabItem>[
-      const _SubTabItem(index: 0, icon: Icons.home_rounded, label: "Home"),
-      const _SubTabItem(index: 1, icon: Icons.hearing_rounded, label: "Listen->Reveal"),
-      const _SubTabItem(index: 2, icon: Icons.touch_app_rounded, label: "Listen->Choose"),
-      const _SubTabItem(index: 3, icon: Icons.insights_rounded, label: "Results"),
-      const _SubTabItem(index: 4, icon: Icons.settings_rounded, label: "Settings"),
+      _SubTabItem(index: 0, icon: Icons.home_rounded, label: _t(zh: "主页", en: "Home")),
+      _SubTabItem(
+        index: 1,
+        icon: Icons.hearing_rounded,
+        label: _t(zh: "听后揭示", en: "Listen->Reveal"),
+      ),
+      _SubTabItem(
+        index: 2,
+        icon: Icons.touch_app_rounded,
+        label: _t(zh: "听后选择", en: "Listen->Choose"),
+      ),
+      _SubTabItem(index: 3, icon: Icons.insights_rounded, label: _t(zh: "结果", en: "Results")),
+      _SubTabItem(index: 4, icon: Icons.settings_rounded, label: _t(zh: "设置", en: "Settings")),
     ];
 
     return SizedBox(
@@ -1714,10 +1769,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       children: <Widget>[
-        Text("Scale Ear Trainer", style: theme.textTheme.headlineSmall),
+        Text(_t(zh: "音阶听音训练", en: "Scale Ear Trainer"), style: theme.textTheme.headlineSmall),
         const SizedBox(height: 6),
         Text(
-          "5-10 minutes daily to build tonic center and degree recognition.",
+          _t(
+            zh: "每天 5-10 分钟，建立主音中心与音级识别。",
+            en: "5-10 minutes daily to build tonic center and degree recognition.",
+          ),
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 12),
@@ -1727,9 +1785,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text("Today", style: theme.textTheme.titleMedium),
+                Text(_t(zh: "今日训练", en: "Today"), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 10),
-                const Text("Suggested: 1 set Listen->Reveal + 1 set Listen->Choose."),
+                Text(
+                  _t(
+                    zh: "建议：听后揭示 1 组 + 听后选择 1 组。",
+                    en: "Suggested: 1 set Listen->Reveal + 1 set Listen->Choose.",
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -1738,12 +1801,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     FilledButton.icon(
                       onPressed: _startModeA,
                       icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text("Start Mode A"),
+                      label: Text(_t(zh: "开始模式 A", en: "Start Mode A")),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: _startModeB,
                       icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text("Start Mode B"),
+                      label: Text(_t(zh: "开始模式 B", en: "Start Mode B")),
                     ),
                   ],
                 ),
@@ -1758,17 +1821,17 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text("Training Params", style: theme.textTheme.titleMedium),
+                Text(_t(zh: "训练参数", en: "Training Params"), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 10),
-                const Text("Question count"),
+                Text(_t(zh: "题目数量", en: "Question count")),
                 const SizedBox(height: 6),
                 _buildQuestionCountSelector(),
                 const SizedBox(height: 10),
-                const Text("Speed"),
+                Text(_t(zh: "速度", en: "Speed")),
                 const SizedBox(height: 6),
                 _buildSpeedSelector(),
                 const SizedBox(height: 10),
-                const Text("Mode B prompt flow"),
+                Text(_t(zh: "模式 B 提示流程", en: "Mode B prompt flow")),
                 const SizedBox(height: 6),
                 _buildModeBPromptFlowSelector(),
               ],
@@ -1782,12 +1845,22 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text("Quick Stats", style: theme.textTheme.titleMedium),
+                Text(_t(zh: "快速统计", en: "Quick Stats"), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 10),
-                Text("Sets today: $_todayCompletedSets"),
-                Text("Time today: ${_formatDuration(_todayTrainingDuration)}"),
-                Text("Streak days: $_streakDays"),
-                Text("Latest Mode B accuracy: $latestAccuracy"),
+                Text(_t(zh: "今日完成组数：$_todayCompletedSets", en: "Sets today: $_todayCompletedSets")),
+                Text(
+                  _t(
+                    zh: "今日训练时长：${_formatDuration(_todayTrainingDuration)}",
+                    en: "Time today: ${_formatDuration(_todayTrainingDuration)}",
+                  ),
+                ),
+                Text(_t(zh: "连续天数：$_streakDays", en: "Streak days: $_streakDays")),
+                Text(
+                  _t(
+                    zh: "最近模式 B 准确率：$latestAccuracy",
+                    en: "Latest Mode B accuracy: $latestAccuracy",
+                  ),
+                ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: () {
@@ -1797,7 +1870,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     _syncPlaybackWithVisibility();
                   },
                   icon: const Icon(Icons.insights_rounded),
-                  label: const Text("Open Results"),
+                  label: Text(_t(zh: "打开结果页", en: "Open Results")),
                 ),
               ],
             ),
@@ -1815,9 +1888,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       children: <Widget>[
-        Text("Mode A: Listen -> Reveal", style: theme.textTheme.titleLarge),
+        Text(_t(zh: "模式 A：听后揭示", en: "Mode A: Listen -> Reveal"), style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
-        const Text("Flow: tonic -> target -> think -> answer -> replay"),
+        Text(
+          _t(
+            zh: "流程：主音中心 -> 目标音 -> 思考 -> 答案 -> 重播",
+            en: "Flow: tonic -> target -> think -> answer -> replay",
+          ),
+        ),
         const SizedBox(height: 12),
         Card(
           child: Padding(
@@ -1825,15 +1903,20 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text("Status", style: theme.textTheme.titleMedium),
+                Text(_t(zh: "状态", en: "Status"), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 10),
-                Text("Question: $current / $total"),
+                Text(_t(zh: "题目：$current / $total", en: "Question: $current / $total")),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(value: progress),
                 const SizedBox(height: 10),
-                Text("Phase: $_modeAStatus"),
+                Text(_t(zh: "阶段：$_modeAStatus", en: "Phase: $_modeAStatus")),
                 Text(
-                  "Answer display: ${_modeAAnswer == null ? "Waiting" : _noteDisplayLabel(_modeAAnswer!)}",
+                  _t(
+                    zh:
+                        "答案显示：${_modeAAnswer == null ? "等待中" : _noteDisplayLabel(_modeAAnswer!)}",
+                    en:
+                        "Answer display: ${_modeAAnswer == null ? "Waiting" : _noteDisplayLabel(_modeAAnswer!)}",
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -1843,7 +1926,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     FilledButton.icon(
                       onPressed: _modeARunning ? null : _startModeA,
                       icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text("Start"),
+                      label: Text(_t(zh: "开始", en: "Start")),
                     ),
                     if (_modeARunning)
                       FilledButton.tonalIcon(
@@ -1853,19 +1936,23 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                               ? Icons.play_arrow_rounded
                               : Icons.pause_rounded,
                         ),
-                        label: Text(_modeAPaused ? "Resume" : "Pause"),
+                        label: Text(
+                          _modeAPaused
+                              ? _t(zh: "继续", en: "Resume")
+                              : _t(zh: "暂停", en: "Pause"),
+                        ),
                       ),
                     if (_modeARunning)
                       OutlinedButton.icon(
                         onPressed: _replayModeAQuestion,
                         icon: const Icon(Icons.replay_rounded),
-                        label: const Text("Replay"),
+                        label: Text(_t(zh: "重播", en: "Replay")),
                       ),
                     if (_modeARunning)
                       TextButton.icon(
                         onPressed: _exitModeA,
                         icon: const Icon(Icons.exit_to_app_rounded),
-                        label: const Text("Exit"),
+                        label: Text(_t(zh: "退出", en: "Exit")),
                       ),
                   ],
                 ),
@@ -1939,7 +2026,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           ? _ModeBDetailTone.correct
           : _ModeBDetailTone.wrong;
     } else if (_modeBRunning && !_modeBLocked && !_modeBPromptReadyForAnswer) {
-      modeBDetailMessage = "Wait for prompt playback to finish before choosing.";
+      modeBDetailMessage = _t(
+        zh: "请等待提示音播放结束后再作答。",
+        en: "Wait for prompt playback to finish before choosing.",
+      );
       modeBDetailTone = _ModeBDetailTone.waiting;
     } else {
       modeBDetailMessage = null;
@@ -1986,15 +2076,26 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       children: <Widget>[
-        Text("Mode B: Listen -> Choose", style: theme.textTheme.titleLarge),
+        Text(_t(zh: "模式 B：听后选择", en: "Mode B: Listen -> Choose"), style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
         Text(
           singleOctaveChoices
-              ? "Choose one from Re Mi Fa Sol La Ti Do."
-              : "Choose one from active set (${choiceNotes.length} notes, 2~8).",
+              ? _t(
+                  zh: "请在 Re Mi Fa Sol La Ti Do 中选择一个。",
+                  en: "Choose one from Re Mi Fa Sol La Ti Do.",
+                )
+              : _t(
+                  zh: "请从当前集合中选择（${choiceNotes.length} 个音，2~8）。",
+                  en: "Choose one from active set (${choiceNotes.length} notes, 2~8).",
+                ),
         ),
         const SizedBox(height: 4),
-        Text("Prompt flow: ${_modeBPromptFlow.label}"),
+        Text(
+          _t(
+            zh: "提示流程：${_modeBPromptFlow.labelFor(_language)}",
+            en: "Prompt flow: ${_modeBPromptFlow.labelFor(_language)}",
+          ),
+        ),
         const SizedBox(height: 12),
         Card(
           child: Padding(
@@ -2002,13 +2103,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text("Status", style: theme.textTheme.titleMedium),
+                Text(_t(zh: "状态", en: "Status"), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 10),
-                Text("Question: $current / $total"),
+                Text(_t(zh: "题目：$current / $total", en: "Question: $current / $total")),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(value: progress),
                 const SizedBox(height: 10),
-                Text("State: $_modeBStatus"),
+                Text(_t(zh: "当前状态：$_modeBStatus", en: "State: $_modeBStatus")),
                 const SizedBox(height: 6),
                 ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 42),
@@ -2087,25 +2188,25 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     FilledButton.icon(
                       onPressed: _modeBRunning ? null : _startModeB,
                       icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text("Start"),
+                      label: Text(_t(zh: "开始", en: "Start")),
                     ),
                     if (_modeBRunning)
                       OutlinedButton.icon(
                         onPressed: _replayModeBQuestion,
                         icon: const Icon(Icons.replay_rounded),
-                        label: const Text("Replay Prompt"),
+                        label: Text(_t(zh: "重播提示", en: "Replay Prompt")),
                       ),
                     if (_modeBRunning)
                       OutlinedButton.icon(
                         onPressed: _finishModeB,
                         icon: const Icon(Icons.check_rounded),
-                        label: const Text("Finish"),
+                        label: Text(_t(zh: "完成", en: "Finish")),
                       ),
                     if (_modeBRunning)
                       TextButton.icon(
                         onPressed: _exitModeB,
                         icon: const Icon(Icons.exit_to_app_rounded),
-                        label: const Text("Exit"),
+                        label: Text(_t(zh: "退出", en: "Exit")),
                       ),
                   ],
                 ),
@@ -2114,7 +2215,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                   FilledButton.tonalIcon(
                     onPressed: _advanceModeB,
                     icon: const Icon(Icons.skip_next_rounded),
-                    label: const Text("Next"),
+                    label: Text(_t(zh: "下一题", en: "Next")),
                   ),
                 ],
               ],
@@ -2127,10 +2228,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   Widget _buildRecordCard(ThemeData theme, _SessionRecord record) {
     final String accuracyText = record.correctCount == null
-        ? "N/A (not tracked in this mode)"
+        ? _t(zh: "N/A（该模式不统计）", en: "N/A (not tracked in this mode)")
         : "${(record.accuracy * 100).toStringAsFixed(1)}%";
     final String wrongText = record.wrongCounts.isEmpty
-        ? "None"
+        ? _t(zh: "无", en: "None")
         : record.wrongCounts.entries
             .map(
               (MapEntry<String, int> entry) =>
@@ -2144,21 +2245,30 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(record.modeLabel, style: theme.textTheme.titleMedium),
+            Text(record.modeLabelFor(_language), style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            Text("Questions: ${record.questionCount}"),
-            Text("Duration: ${_formatDuration(record.duration)}"),
-            Text("Accuracy: $accuracyText"),
-            Text("Replay count: ${record.replayCount}"),
+            Text(_t(zh: "题目数：${record.questionCount}", en: "Questions: ${record.questionCount}")),
+            Text(_t(zh: "时长：${_formatDuration(record.duration)}", en: "Duration: ${_formatDuration(record.duration)}")),
+            Text(_t(zh: "准确率：$accuracyText", en: "Accuracy: $accuracyText")),
+            Text(_t(zh: "重播次数：${record.replayCount}", en: "Replay count: ${record.replayCount}")),
             const SizedBox(height: 6),
-            Text("Wrong items: $wrongText"),
+            Text(_t(zh: "错误项：$wrongText", en: "Wrong items: $wrongText")),
             const SizedBox(height: 6),
             Text(
-              "Completed: ${record.finishedAt.year.toString().padLeft(4, "0")}-"
-              "${record.finishedAt.month.toString().padLeft(2, "0")}-"
-              "${record.finishedAt.day.toString().padLeft(2, "0")} "
-              "${record.finishedAt.hour.toString().padLeft(2, "0")}:"
-              "${record.finishedAt.minute.toString().padLeft(2, "0")}",
+              _t(
+                zh:
+                    "完成时间：${record.finishedAt.year.toString().padLeft(4, "0")}-"
+                    "${record.finishedAt.month.toString().padLeft(2, "0")}-"
+                    "${record.finishedAt.day.toString().padLeft(2, "0")} "
+                    "${record.finishedAt.hour.toString().padLeft(2, "0")}:"
+                    "${record.finishedAt.minute.toString().padLeft(2, "0")}",
+                en:
+                    "Completed: ${record.finishedAt.year.toString().padLeft(4, "0")}-"
+                    "${record.finishedAt.month.toString().padLeft(2, "0")}-"
+                    "${record.finishedAt.day.toString().padLeft(2, "0")} "
+                    "${record.finishedAt.hour.toString().padLeft(2, "0")}:"
+                    "${record.finishedAt.minute.toString().padLeft(2, "0")}",
+              ),
               style: theme.textTheme.bodySmall,
             ),
           ],
@@ -2171,26 +2281,29 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       children: <Widget>[
-        Text("Results", style: theme.textTheme.titleLarge),
+        Text(_t(zh: "训练结果", en: "Results"), style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
         if (_latestModeARecord == null && _latestModeBRecord == null)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Text(
-                "No sessions yet. Start one to see metrics.",
+                _t(
+                  zh: "暂无训练记录，开始一次训练后可查看指标。",
+                  en: "No sessions yet. Start one to see metrics.",
+                ),
                 style: theme.textTheme.bodyLarge,
               ),
             ),
           ),
         if (_latestModeARecord != null) ...<Widget>[
-          Text("Latest Mode A", style: theme.textTheme.titleMedium),
+          Text(_t(zh: "最近模式 A", en: "Latest Mode A"), style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           _buildRecordCard(theme, _latestModeARecord!),
         ],
         if (_latestModeBRecord != null) ...<Widget>[
           const SizedBox(height: 8),
-          Text("Latest Mode B", style: theme.textTheme.titleMedium),
+          Text(_t(zh: "最近模式 B", en: "Latest Mode B"), style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           _buildRecordCard(theme, _latestModeBRecord!),
         ],
@@ -2202,12 +2315,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             FilledButton.icon(
               onPressed: _startModeA,
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text("Run Mode A"),
+              label: Text(_t(zh: "运行模式 A", en: "Run Mode A")),
             ),
             FilledButton.tonalIcon(
               onPressed: _startModeB,
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text("Run Mode B"),
+              label: Text(_t(zh: "运行模式 B", en: "Run Mode B")),
             ),
             FilledButton.tonalIcon(
               onPressed: (_latestModeBRecord != null &&
@@ -2215,7 +2328,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                   ? _startWrongRedo
                   : null,
               icon: const Icon(Icons.replay_circle_filled_rounded),
-              label: const Text("Wrong-only Review"),
+              label: Text(_t(zh: "仅错题复习", en: "Wrong-only Review")),
             ),
           ],
         ),
@@ -2223,12 +2336,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         Row(
           children: <Widget>[
             Expanded(
-              child: Text("Recent History", style: theme.textTheme.titleMedium),
+              child: Text(_t(zh: "最近记录", en: "Recent History"), style: theme.textTheme.titleMedium),
             ),
             TextButton.icon(
               onPressed: _history.isEmpty ? null : _clearHistoryRecords,
               icon: const Icon(Icons.delete_sweep_rounded),
-              label: const Text("Clear"),
+              label: Text(_t(zh: "清空", en: "Clear")),
             ),
           ],
         ),
@@ -2238,20 +2351,23 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Text(
-                "No history yet",
+                _t(zh: "暂无历史记录", en: "No history yet"),
                 style: theme.textTheme.bodyMedium,
               ),
             ),
           ),
         ..._history.take(8).map((_SessionRecord record) {
           final String accuracy = record.correctCount == null
-              ? "N/A"
+              ? _t(zh: "N/A", en: "N/A")
               : "${(record.accuracy * 100).toStringAsFixed(0)}%";
           return Card(
             child: ListTile(
-              title: Text(record.modeLabel),
+              title: Text(record.modeLabelFor(_language)),
               subtitle: Text(
-                "${record.questionCount} Q | ${_formatDuration(record.duration)} | $accuracy",
+                _t(
+                  zh: "${record.questionCount} 题 | ${_formatDuration(record.duration)} | $accuracy",
+                  en: "${record.questionCount} Q | ${_formatDuration(record.duration)} | $accuracy",
+                ),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -2261,7 +2377,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     "${record.finishedAt.minute.toString().padLeft(2, "0")}",
                   ),
                   IconButton(
-                    tooltip: "Delete",
+                    tooltip: _t(zh: "删除", en: "Delete"),
                     onPressed: () => _deleteHistoryRecord(record),
                     icon: const Icon(Icons.delete_outline_rounded),
                   ),
@@ -2278,7 +2394,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       children: <Widget>[
-        Text("Ear Training Settings", style: theme.textTheme.titleLarge),
+        Text(_t(zh: "听音训练设置", en: "Ear Training Settings"), style: theme.textTheme.titleLarge),
         const SizedBox(height: 10),
         Card(
           child: Padding(
@@ -2286,17 +2402,17 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text("Defaults", style: theme.textTheme.titleMedium),
+                Text(_t(zh: "默认项", en: "Defaults"), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 10),
-                const Text("Question count"),
+                Text(_t(zh: "题目数量", en: "Question count")),
                 const SizedBox(height: 6),
                 _buildQuestionCountSelector(),
                 const SizedBox(height: 10),
-                const Text("Speed"),
+                Text(_t(zh: "速度", en: "Speed")),
                 const SizedBox(height: 6),
                 _buildSpeedSelector(),
                 const SizedBox(height: 10),
-                const Text("Mode B prompt flow"),
+                Text(_t(zh: "模式 B 提示流程", en: "Mode B prompt flow")),
                 const SizedBox(height: 6),
                 _buildModeBPromptFlowSelector(),
               ],
@@ -2308,7 +2424,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           child: Column(
             children: <Widget>[
               SwitchListTile(
-                title: const Text("Mode B auto answer replay"),
+                title: Text(_t(zh: "模式 B 自动回放答案", en: "Mode B auto answer replay")),
                 value: _autoPlayAnswerInModeB,
                 onChanged: (bool value) {
                   setState(() {
@@ -2317,7 +2433,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 },
               ),
               SwitchListTile(
-                title: const Text("Auto next question"),
+                title: Text(_t(zh: "自动进入下一题", en: "Auto next question")),
                 value: _autoAdvanceToNextQuestion,
                 onChanged: (bool value) {
                   setState(() {
@@ -2326,7 +2442,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 },
               ),
               SwitchListTile(
-                title: const Text("Error hint sound"),
+                title: Text(_t(zh: "错误提示音", en: "Error hint sound")),
                 value: _errorHintEnabled,
                 onChanged: (bool value) {
                   setState(() {
@@ -2344,7 +2460,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text("Audio test", style: theme.textTheme.titleMedium),
+                Text(_t(zh: "音频测试", en: "Audio test"), style: theme.textTheme.titleMedium),
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
                   onPressed: () {
@@ -2360,17 +2476,23 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          "Played test prompt (${_modeBPromptFlow.label})",
+                          _t(
+                            zh: "已播放测试提示（${_modeBPromptFlow.labelFor(_language)}）",
+                            en: "Played test prompt (${_modeBPromptFlow.labelFor(_language)})",
+                          ),
                         ),
                       ),
                     );
                   },
                   icon: const Icon(Icons.volume_up_rounded),
-                  label: const Text("Play test prompt"),
+                  label: Text(_t(zh: "播放测试提示", en: "Play test prompt")),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  "Tip: 5 minutes daily, with headphones in a quiet place.",
+                  _t(
+                    zh: "建议：每天 5 分钟，佩戴耳机并在安静环境中训练。",
+                    en: "Tip: 5 minutes daily, with headphones in a quiet place.",
+                  ),
                   style: theme.textTheme.bodySmall,
                 ),
               ],
@@ -2472,10 +2594,14 @@ class _SessionRecord {
   final Map<String, int> wrongCounts;
   final DateTime finishedAt;
 
-  String get modeLabel {
+  String modeLabelFor(AppLanguage language) {
     return switch (mode) {
-      _EarMode.listenAndReveal => "Mode A Listen->Reveal",
-      _EarMode.listenAndChoose => "Mode B Listen->Choose",
+      _EarMode.listenAndReveal => language == AppLanguage.zh
+          ? "模式 A 听后揭示"
+          : "Mode A Listen->Reveal",
+      _EarMode.listenAndChoose => language == AppLanguage.zh
+          ? "模式 B 听后选择"
+          : "Mode B Listen->Choose",
     };
   }
 
