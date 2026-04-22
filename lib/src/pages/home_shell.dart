@@ -332,6 +332,14 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
+  double _subTabBarHeight(BuildContext context) {
+    final double textScale = MediaQuery.textScalerOf(context)
+        .scale(1.0)
+        .clamp(1.0, 1.35)
+        .toDouble();
+    return 66 * textScale;
+  }
+
   Widget _buildMetronomeSubTabs(BuildContext context) {
     final List<_MetronomeSubTabItem> tabs = <_MetronomeSubTabItem>[
       _MetronomeSubTabItem(
@@ -354,7 +362,7 @@ class _HomeShellState extends State<HomeShell> {
     return SafeArea(
       bottom: false,
       child: SizedBox(
-        height: 66,
+        height: _subTabBarHeight(context),
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),

@@ -1715,6 +1715,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     );
   }
 
+  double _subTabBarHeight(BuildContext context) {
+    final double textScale = MediaQuery.textScalerOf(context)
+        .scale(1.0)
+        .clamp(1.0, 1.35)
+        .toDouble();
+    return 66 * textScale;
+  }
+
   Widget _buildSubTabs() {
     final List<_SubTabItem> tabs = <_SubTabItem>[
       _SubTabItem(index: 0, icon: Icons.home_rounded, label: _t(zh: "主页", en: "Home")),
@@ -1733,7 +1741,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     ];
 
     return SizedBox(
-      height: 66,
+      height: _subTabBarHeight(context),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
