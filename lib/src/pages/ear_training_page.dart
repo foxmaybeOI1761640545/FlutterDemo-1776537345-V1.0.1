@@ -1900,6 +1900,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final bool denseChoices = choiceNotes.length > 14;
     final bool singleOctaveChoices =
         choiceNotes.map((_EarNoteSpec note) => note.octave).toSet().length <= 1;
+    final String? modeBDetailMessage;
+    if (_modeBFeedback != null) {
+      modeBDetailMessage = _modeBFeedback!;
+    } else if (_modeBRunning && !_modeBLocked && !_modeBPromptReadyForAnswer) {
+      modeBDetailMessage = "Wait for prompt playback to finish before choosing.";
+    } else {
+      modeBDetailMessage = null;
+    }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
@@ -1927,14 +1935,16 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 LinearProgressIndicator(value: progress),
                 const SizedBox(height: 10),
                 Text("State: $_modeBStatus"),
-                if (_modeBFeedback != null) ...<Widget>[
-                  const SizedBox(height: 6),
-                  Text(_modeBFeedback!),
-                ],
-                if (_modeBRunning && !_modeBLocked && !_modeBPromptReadyForAnswer) ...<Widget>[
-                  const SizedBox(height: 6),
-                  const Text("Wait for prompt playback to finish before choosing."),
-                ],
+                const SizedBox(height: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 24),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: modeBDetailMessage == null
+                        ? const SizedBox.shrink()
+                        : Text(modeBDetailMessage),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
