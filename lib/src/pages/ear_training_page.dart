@@ -1022,10 +1022,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (!played) {
       if (requireModeBRunning) {
         setState(() {
-          _modeBPromptReadyForAnswer = false;
+          _modeBPromptReadyForAnswer = true;
           _modeBStatus = _t(
             zh: "提示播放失败，请点击“重播提示”",
-            en: "Prompt playback failed, tap Replay Prompt",
+            en: "Prompt issue detected, answer unlocked (Replay available)",
           );
         });
       }
