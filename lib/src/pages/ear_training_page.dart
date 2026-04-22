@@ -95,10 +95,12 @@ class _EarNoteSpec {
 class EarTrainingPage extends StatefulWidget {
   const EarTrainingPage({
     this.isActive = true,
+    required this.onLanguageChanged,
     super.key,
   });
 
   final bool isActive;
+  final ValueChanged<AppLanguage> onLanguageChanged;
 
   @override
   State<EarTrainingPage> createState() => _EarTrainingPageState();
@@ -1736,7 +1738,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         icon: Icons.touch_app_rounded,
         label: _t(zh: "听后选择", en: "Listen->Choose"),
       ),
-      _SubTabItem(index: 3, icon: Icons.insights_rounded, label: _t(zh: "结果", en: "Results")),
+      _SubTabItem(index: 3, icon: Icons.insights_rounded, label: _t(zh: "历史记录", en: "History")),
       _SubTabItem(index: 4, icon: Icons.settings_rounded, label: _t(zh: "设置", en: "Settings")),
     ];
 
@@ -1882,7 +1884,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                     _syncPlaybackWithVisibility();
                   },
                   icon: const Icon(Icons.insights_rounded),
-                  label: Text(_t(zh: "打开结果页", en: "Open Results")),
+                  label: Text(_t(zh: "打开历史记录页", en: "Open History")),
                 ),
               ],
             ),
@@ -2299,7 +2301,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       children: <Widget>[
-        Text(_t(zh: "训练结果", en: "Results"), style: theme.textTheme.titleLarge),
+        Text(_t(zh: "历史记录", en: "History"), style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
         if (_latestModeARecord == null && _latestModeBRecord == null)
           Card(
@@ -2433,6 +2435,29 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 Text(_t(zh: "模式 B 提示流程", en: "Mode B prompt flow")),
                 const SizedBox(height: 6),
                 _buildModeBPromptFlowSelector(),
+                const SizedBox(height: 10),
+                Text(_t(zh: "全局语言", en: "Global language")),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    ChoiceChip(
+                      label: Text(_t(zh: "中文", en: "Chinese")),
+                      selected: _language == AppLanguage.zh,
+                      onSelected: (_) {
+                        widget.onLanguageChanged(AppLanguage.zh);
+                      },
+                    ),
+                    ChoiceChip(
+                      label: Text(_t(zh: "英文", en: "English")),
+                      selected: _language == AppLanguage.en,
+                      onSelected: (_) {
+                        widget.onLanguageChanged(AppLanguage.en);
+                      },
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

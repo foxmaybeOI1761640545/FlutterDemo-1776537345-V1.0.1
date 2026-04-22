@@ -276,6 +276,10 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  void _updateLanguage(AppLanguage language) {
+    _updateSettings(widget.settings.copyWith(language: language));
+  }
+
   Future<void> _clearAllLocalData() async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -440,7 +444,10 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(
         index: _mainTab,
         children: <Widget>[
-          EarTrainingPage(isActive: _mainTab == 0),
+          EarTrainingPage(
+            isActive: _mainTab == 0,
+            onLanguageChanged: _updateLanguage,
+          ),
           _buildMetronomeWorkspace(context),
         ],
       ),
