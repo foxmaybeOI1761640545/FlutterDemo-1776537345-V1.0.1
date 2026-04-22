@@ -1900,6 +1900,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final bool denseChoices = choiceNotes.length > 14;
     final bool singleOctaveChoices =
         choiceNotes.map((_EarNoteSpec note) => note.octave).toSet().length <= 1;
+    final bool showDisabledOneDoSlot =
+        singleOctaveChoices && choiceNotes.length == _degrees.length;
     final String? modeBDetailMessage;
     if (_modeBFeedback != null) {
       modeBDetailMessage = _modeBFeedback!;
@@ -1949,20 +1951,30 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: choiceNotes.map((_EarNoteSpec note) {
-                    return SizedBox(
-                      width: denseChoices ? 82 : 92,
-                      child: FilledButton(
-                        onPressed: (_modeBRunning && !_modeBPaused)
-                            && !_modeBLocked
-                            && _modeBPromptReadyForAnswer
-                            ? () => _submitModeB(note.id)
-                            : null,
-                        style: _modeBChoiceStyle(theme, note.id),
-                        child: Text(_noteDisplayLabel(note.id)),
+                  children: <Widget>[
+                    if (showDisabledOneDoSlot)
+                      SizedBox(
+                        width: denseChoices ? 82 : 92,
+                        child: const FilledButton(
+                          onPressed: null,
+                          child: Text("1Do"),
+                        ),
                       ),
-                    );
-                  }).toList(),
+                    ...choiceNotes.map((_EarNoteSpec note) {
+                      return SizedBox(
+                        width: denseChoices ? 82 : 92,
+                        child: FilledButton(
+                          onPressed: (_modeBRunning && !_modeBPaused)
+                              && !_modeBLocked
+                              && _modeBPromptReadyForAnswer
+                              ? () => _submitModeB(note.id)
+                              : null,
+                          style: _modeBChoiceStyle(theme, note.id),
+                          child: Text(_noteDisplayLabel(note.id)),
+                        ),
+                      );
+                    }),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Wrap(
