@@ -230,20 +230,26 @@ class SettingsPage extends StatelessWidget {
                           ],
                         ),
                         SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(context.tr(zh: "深色主题", en: "Dark Theme")),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                          title: Text(
+                            context.tr(zh: "深色主题", en: "Dark Theme"),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           value: settings.darkTheme,
                           onChanged: (bool value) {
                             onSettingsChanged(settings.copyWith(darkTheme: value));
                           },
                         ),
                         SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                           title: Text(
                             context.tr(
                               zh: "视觉提示（高亮当前拍）",
                               en: "Visual Hints (Highlight Active Beat)",
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           value: settings.visualHints,
                           onChanged: (bool value) {

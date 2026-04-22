@@ -2446,7 +2446,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           child: Column(
             children: <Widget>[
               SwitchListTile(
-                title: Text(_t(zh: "模式 B 自动回放答案", en: "Mode B auto answer replay")),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                title: Text(
+                  _t(zh: "模式 B 自动回放答案", en: "Mode B auto answer replay"),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 value: _autoPlayAnswerInModeB,
                 onChanged: (bool value) {
                   setState(() {
@@ -2455,7 +2460,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 },
               ),
               SwitchListTile(
-                title: Text(_t(zh: "自动进入下一题", en: "Auto next question")),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                title: Text(
+                  _t(zh: "自动进入下一题", en: "Auto next question"),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 value: _autoAdvanceToNextQuestion,
                 onChanged: (bool value) {
                   setState(() {
@@ -2464,7 +2474,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 },
               ),
               SwitchListTile(
-                title: Text(_t(zh: "错误提示音", en: "Error hint sound")),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                title: Text(
+                  _t(zh: "错误提示音", en: "Error hint sound"),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 value: _errorHintEnabled,
                 onChanged: (bool value) {
                   setState(() {
