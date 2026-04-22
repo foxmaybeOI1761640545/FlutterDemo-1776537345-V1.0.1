@@ -849,6 +849,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     required String assetPath,
     required double volume,
     required Duration fallbackDuration,
+    required bool allowTimeoutAsSuccess,
   }) async {
     await _ensurePlatformAudioContext();
     final Duration expectedDuration = await _assetDuration(
@@ -873,6 +874,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           return Future<void>.value();
         });
         if (timedOut) {
+          if (allowTimeoutAsSuccess && mode == PlayerMode.mediaPlayer) {
+            // Some iOS backends may miss completion callbacks for long assets.
+            // When playback started successfully in media mode, treat timeout as done.
+            await player.stop();
+            return true;
+          }
           await player.stop();
           continue;
         }
@@ -905,6 +912,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   Future<bool> _playNoteAndWait(
     String noteId, {
     double volume = 0.9,
+    bool allowTimeoutAsSuccess = false,
   }) async {
     final String assetPath = _resolveNote(noteId).assetPath;
     try {
@@ -913,6 +921,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         assetPath: assetPath,
         volume: volume.clamp(0, 1).toDouble(),
         fallbackDuration: _defaultNoteDuration,
+        allowTimeoutAsSuccess: allowTimeoutAsSuccess,
       );
       if (!played) {
         debugPrint("Ear training note wait playback did not complete: $assetPath");
@@ -998,7 +1007,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     )) {
       return;
     }
-    final bool played = await _playNoteAndWait(noteId, volume: 0.94);
+    final bool played = await _playNoteAndWait(
+      noteId,
+      volume: 0.94,
+      allowTimeoutAsSuccess: _isIOSPlatform,
+    );
 
     if (!_canContinueModeBPrompt(
       token: token,
