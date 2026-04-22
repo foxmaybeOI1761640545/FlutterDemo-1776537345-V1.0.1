@@ -6,6 +6,7 @@ import "../widgets/repeat_action_icon_button.dart";
 class MetronomePage extends StatelessWidget {
   const MetronomePage({
     required this.config,
+    required this.language,
     required this.isPlaying,
     required this.activeBeat,
     required this.activeSubTick,
@@ -25,6 +26,7 @@ class MetronomePage extends StatelessWidget {
   });
 
   final MetronomeConfig config;
+  final AppLanguage language;
   final bool isPlaying;
   final int activeBeat;
   final int activeSubTick;
@@ -42,13 +44,17 @@ class MetronomePage extends StatelessWidget {
   final VoidCallback onOpenSettings;
 
   Future<void> _showBpmInputDialog(BuildContext context) async {
+    String t({required String zh, required String en}) {
+      return language == AppLanguage.zh ? zh : en;
+    }
+
     final TextEditingController controller =
         TextEditingController(text: config.bpm.toString());
     final int? result = await showDialog<int>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("输入 BPM"),
+          title: Text(t(zh: "输入 BPM", en: "Input BPM")),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -64,13 +70,13 @@ class MetronomePage extends StatelessWidget {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text("取消"),
+              child: Text(t(zh: "取消", en: "Cancel")),
             ),
             FilledButton(
               onPressed: () {
                 Navigator.of(context).pop(int.tryParse(controller.text.trim()));
               },
-              child: const Text("确认"),
+              child: Text(t(zh: "确认", en: "Confirm")),
             ),
           ],
         );
@@ -126,6 +132,7 @@ class MetronomePage extends StatelessWidget {
                           flex: 7,
                           child: _MainPanel(
                             theme: theme,
+                            language: language,
                             config: config,
                             signature: signature,
                             isPlaying: isPlaying,
@@ -149,6 +156,7 @@ class MetronomePage extends StatelessWidget {
                         Expanded(
                           flex: 4,
                           child: _SidePanel(
+                            language: language,
                             config: config,
                             isPlaying: isPlaying,
                             tapCount: tapCount,
@@ -165,6 +173,7 @@ class MetronomePage extends StatelessWidget {
                       children: <Widget>[
                         _MainPanel(
                           theme: theme,
+                          language: language,
                           config: config,
                           signature: signature,
                           isPlaying: isPlaying,
@@ -185,6 +194,7 @@ class MetronomePage extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         _SidePanel(
+                          language: language,
                           config: config,
                           isPlaying: isPlaying,
                           tapCount: tapCount,
@@ -207,6 +217,7 @@ class MetronomePage extends StatelessWidget {
 class _MainPanel extends StatelessWidget {
   const _MainPanel({
     required this.theme,
+    required this.language,
     required this.config,
     required this.signature,
     required this.isPlaying,
@@ -227,6 +238,7 @@ class _MainPanel extends StatelessWidget {
   });
 
   final ThemeData theme;
+  final AppLanguage language;
   final MetronomeConfig config;
   final TimeSignatureDefinition signature;
   final bool isPlaying;
@@ -247,32 +259,49 @@ class _MainPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    String t({required String zh, required String en}) {
+      return language == AppLanguage.zh ? zh : en;
+    }
+
     final Color titleColor = theme.colorScheme.onSurface.withOpacity(0.74);
     final bool compactMetrics = MediaQuery.sizeOf(context).width < 600;
     final List<Widget> metricCards = <Widget>[
       _MetricCard(
-        title: "速度 BPM",
+        title: t(zh: "速度 BPM", en: "Tempo BPM"),
         value: config.bpm.toString(),
-        subtitle: tempoTerm(config.bpm),
+        subtitle: tempoTermForLanguage(config.bpm, language),
         onTap: onRequestBpmInput,
         width: compactMetrics ? double.infinity : 170,
       ),
       _MetricCard(
-        title: "拍号",
+        title: t(zh: "拍号", en: "Time Signature"),
         value: signature.key,
-        subtitle: "每小节 ${signature.numerator} 拍",
+        subtitle: t(
+          zh: "每小节 ${signature.numerator} 拍",
+          en: "${signature.numerator} beats per bar",
+        ),
         width: compactMetrics ? double.infinity : 170,
       ),
       _MetricCard(
-        title: "切分",
-        value: config.subdivision.label,
-        subtitle: "${config.subdivision.ticksPerBeat} tick/拍",
+        title: t(zh: "切分", en: "Subdivision"),
+        value: config.subdivision.labelFor(language),
+        subtitle: t(
+          zh: "${config.subdivision.ticksPerBeat} tick/拍",
+          en: "${config.subdivision.ticksPerBeat} ticks/beat",
+        ),
         width: compactMetrics ? double.infinity : 170,
       ),
       _MetricCard(
-        title: "状态",
-        value: isPlaying ? "播放中" : "已停止",
-        subtitle: isPlaying ? "第 ${(activeBeat < 0 ? 0 : activeBeat) + 1} 拍" : "准备开始",
+        title: t(zh: "状态", en: "State"),
+        value: isPlaying
+            ? t(zh: "播放中", en: "Playing")
+            : t(zh: "已停止", en: "Stopped"),
+        subtitle: isPlaying
+            ? t(
+                zh: "第 ${(activeBeat < 0 ? 0 : activeBeat) + 1} 拍",
+                en: "Beat ${(activeBeat < 0 ? 0 : activeBeat) + 1}",
+              )
+            : t(zh: "准备开始", en: "Ready"),
         width: compactMetrics ? double.infinity : 170,
       ),
     ];
@@ -287,7 +316,10 @@ class _MainPanel extends StatelessWidget {
               children: <Widget>[
                 Icon(Icons.graphic_eq_rounded, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text("PulseBeat 离线节拍器", style: theme.textTheme.titleMedium),
+                Text(
+                  t(zh: "PulseBeat 离线节拍器", en: "PulseBeat Offline Metronome"),
+                  style: theme.textTheme.titleMedium,
+                ),
                 const Spacer(),
                 IconButton(onPressed: onOpenPresets, icon: const Icon(Icons.bookmarks_rounded)),
                 IconButton(onPressed: onOpenSettings, icon: const Icon(Icons.settings_rounded)),
@@ -316,9 +348,10 @@ class _MainPanel extends StatelessWidget {
               },
             ),
             const SizedBox(height: 18),
-            Text("重音编辑", style: theme.textTheme.titleSmall),
+            Text(t(zh: "重音编辑", en: "Accent Matrix"), style: theme.textTheme.titleSmall),
             const SizedBox(height: 10),
             _AccentMatrix(
+              language: language,
               signature: signature,
               accents: config.accents,
               activeBeat: activeBeat,
@@ -326,7 +359,10 @@ class _MainPanel extends StatelessWidget {
               onAccentChanged: onAccentChanged,
             ),
             const SizedBox(height: 18),
-            Text("拍号切换", style: theme.textTheme.titleSmall),
+            Text(
+              t(zh: "拍号切换", en: "Time Signature"),
+              style: theme.textTheme.titleSmall,
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -341,7 +377,7 @@ class _MainPanel extends StatelessWidget {
               }).toList(),
             ),
             const SizedBox(height: 14),
-            Text("切分", style: theme.textTheme.titleSmall),
+            Text(t(zh: "切分", en: "Subdivision"), style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -349,7 +385,7 @@ class _MainPanel extends StatelessWidget {
               children: Subdivision.values.map((Subdivision subdivision) {
                 return ChoiceChip(
                   label: Text(
-                    subdivision.label,
+                    subdivision.labelFor(language),
                     maxLines: 1,
                     overflow: TextOverflow.visible,
                   ),
@@ -366,15 +402,23 @@ class _MainPanel extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    "播放指示: ${visualHintsEnabled ? "已开启" : "已关闭"}"
-                    " | 当前切分 tick ${activeSubTick < 0 ? 0 : activeSubTick + 1}",
+                    t(
+                      zh:
+                          "播放指示: ${visualHintsEnabled ? "已开启" : "已关闭"} | 当前切分 tick ${activeSubTick < 0 ? 0 : activeSubTick + 1}",
+                      en:
+                          "Visual hints: ${visualHintsEnabled ? "On" : "Off"} | Current subdivision tick ${activeSubTick < 0 ? 0 : activeSubTick + 1}",
+                    ),
                     style: theme.textTheme.bodySmall?.copyWith(color: titleColor),
                   ),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: onTapTempo,
                   icon: const Icon(Icons.touch_app_rounded),
-                  label: Text(tapCount >= 4 ? "TAP ($tapCount)" : "TAP"),
+                  label: Text(
+                    tapCount >= 4
+                        ? t(zh: "TAP ($tapCount)", en: "TAP ($tapCount)")
+                        : "TAP",
+                  ),
                 ),
               ],
             ),
@@ -383,7 +427,7 @@ class _MainPanel extends StatelessWidget {
               children: <Widget>[
                 RepeatActionIconButton(
                   icon: Icons.remove_rounded,
-                  tooltip: "减速",
+                  tooltip: t(zh: "减速", en: "Slower"),
                   onPressed: onBpmMinus,
                 ),
                 const SizedBox(width: 8),
@@ -393,13 +437,15 @@ class _MainPanel extends StatelessWidget {
                     icon: Icon(
                       isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                     ),
-                    label: Text(isPlaying ? "暂停" : "开始播放"),
+                    label: Text(
+                      isPlaying ? t(zh: "暂停", en: "Pause") : t(zh: "开始播放", en: "Play"),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 RepeatActionIconButton(
                   icon: Icons.add_rounded,
-                  tooltip: "加速",
+                  tooltip: t(zh: "加速", en: "Faster"),
                   onPressed: onBpmPlus,
                 ),
               ],
@@ -410,7 +456,12 @@ class _MainPanel extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: onRequestBpmInput,
                 icon: const Icon(Icons.keyboard_rounded),
-                label: Text("输入 BPM (${config.bpm})"),
+                label: Text(
+                  t(
+                    zh: "输入 BPM (${config.bpm})",
+                    en: "Input BPM (${config.bpm})",
+                  ),
+                ),
               ),
             ),
           ],
@@ -422,6 +473,7 @@ class _MainPanel extends StatelessWidget {
 
 class _SidePanel extends StatelessWidget {
   const _SidePanel({
+    required this.language,
     required this.config,
     required this.isPlaying,
     required this.tapCount,
@@ -432,6 +484,7 @@ class _SidePanel extends StatelessWidget {
     required this.onRequestBpmInput,
   });
 
+  final AppLanguage language;
   final MetronomeConfig config;
   final bool isPlaying;
   final int tapCount;
@@ -443,19 +496,28 @@ class _SidePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    String t({required String zh, required String en}) {
+      return language == AppLanguage.zh ? zh : en;
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: <Widget>[
-            _PlayDial(isPlaying: isPlaying, bpm: config.bpm, onTogglePlay: onTogglePlay),
+            _PlayDial(
+              language: language,
+              isPlaying: isPlaying,
+              bpm: config.bpm,
+              onTogglePlay: onTogglePlay,
+            ),
             const SizedBox(height: 12),
             Row(
               children: <Widget>[
                 Expanded(
                   child: RepeatActionFilledButton(
                     onPressed: onBpmMinus,
-                    tooltip: "按住持续减速",
+                    tooltip: t(zh: "按住持续减速", en: "Hold to decrease continuously"),
                     child: const Text("-1 BPM"),
                   ),
                 ),
@@ -463,7 +525,7 @@ class _SidePanel extends StatelessWidget {
                 Expanded(
                   child: RepeatActionFilledButton(
                     onPressed: onBpmPlus,
-                    tooltip: "按住持续加速",
+                    tooltip: t(zh: "按住持续加速", en: "Hold to increase continuously"),
                     child: const Text("+1 BPM"),
                   ),
                 ),
@@ -473,12 +535,26 @@ class _SidePanel extends StatelessWidget {
             FilledButton.tonalIcon(
               onPressed: onRequestBpmInput,
               icon: const Icon(Icons.keyboard_rounded),
-              label: Text("输入 BPM (${config.bpm})"),
+              label: Text(
+                t(
+                  zh: "输入 BPM (${config.bpm})",
+                  en: "Input BPM (${config.bpm})",
+                ),
+              ),
             ),
             const SizedBox(height: 8),
-            FilledButton.tonal(onPressed: onTapTempo, child: Text(tapCount >= 4 ? "TAP $tapCount" : "TAP")),
+            FilledButton.tonal(
+              onPressed: onTapTempo,
+              child: Text(tapCount >= 4 ? "TAP $tapCount" : "TAP"),
+            ),
             const SizedBox(height: 8),
-            Text("拍号 ${config.timeSignature} | 切分 ${config.subdivision.label}"),
+            Text(
+              t(
+                zh: "拍号 ${config.timeSignature} | 切分 ${config.subdivision.labelFor(language)}",
+                en:
+                    "Time signature ${config.timeSignature} | Subdivision ${config.subdivision.labelFor(language)}",
+              ),
+            ),
           ],
         ),
       ),
@@ -535,6 +611,7 @@ class _MetricCard extends StatelessWidget {
 
 class _AccentMatrix extends StatelessWidget {
   const _AccentMatrix({
+    required this.language,
     required this.signature,
     required this.accents,
     required this.activeBeat,
@@ -542,6 +619,7 @@ class _AccentMatrix extends StatelessWidget {
     required this.onAccentChanged,
   });
 
+  final AppLanguage language;
   final TimeSignatureDefinition signature;
   final List<AccentLevel> accents;
   final int activeBeat;
@@ -581,7 +659,7 @@ class _AccentMatrix extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
                 children: <Widget>[
-                  SizedBox(width: 38, child: Text(level.shortLabel)),
+                  SizedBox(width: 38, child: Text(level.shortLabelFor(language))),
                   for (int beat = 0; beat < signature.numerator; beat++)
                     Expanded(
                       child: Padding(
@@ -646,17 +724,23 @@ class _AccentCell extends StatelessWidget {
 
 class _PlayDial extends StatelessWidget {
   const _PlayDial({
+    required this.language,
     required this.isPlaying,
     required this.bpm,
     required this.onTogglePlay,
   });
 
+  final AppLanguage language;
   final bool isPlaying;
   final int bpm;
   final VoidCallback onTogglePlay;
 
   @override
   Widget build(BuildContext context) {
+    String t({required String zh, required String en}) {
+      return language == AppLanguage.zh ? zh : en;
+    }
+
     final ThemeData theme = Theme.of(context);
     return GestureDetector(
       onTap: onTogglePlay,
@@ -694,7 +778,9 @@ class _PlayDial extends StatelessWidget {
             const SizedBox(height: 18),
             Text("$bpm BPM", style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.primary)),
             const SizedBox(height: 4),
-            Text(isPlaying ? "点击暂停" : "点击开始"),
+            Text(
+              isPlaying ? t(zh: "点击暂停", en: "Tap to pause") : t(zh: "点击开始", en: "Tap to play"),
+            ),
           ],
         ),
       ),

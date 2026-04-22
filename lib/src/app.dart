@@ -1,7 +1,9 @@
 import "dart:async";
 
 import "package:flutter/material.dart";
+import "package:flutter_localizations/flutter_localizations.dart";
 
+import "l10n/app_locale.dart";
 import "models.dart";
 import "pages/home_shell.dart";
 import "storage.dart";
@@ -271,20 +273,34 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLanguage language = _settings.language;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: "PulseBeat",
+      locale: language.locale,
+      supportedLocales: const <Locale>[
+        Locale("zh"),
+        Locale("en"),
+      ],
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: _buildTheme(brightness: Brightness.light),
       darkTheme: _buildTheme(brightness: Brightness.dark),
       themeMode: _settings.darkTheme ? ThemeMode.dark : ThemeMode.light,
       home: _isLoading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : HomeShell(
-              settings: _settings,
-              presets: _presets,
-              onSettingsChanged: _updateSettings,
-              onPresetsChanged: _updatePresets,
-              onClearLocalData: _clearLocalData,
+          : AppLocaleScope(
+              language: language,
+              child: HomeShell(
+                settings: _settings,
+                presets: _presets,
+                onSettingsChanged: _updateSettings,
+                onPresetsChanged: _updatePresets,
+                onClearLocalData: _clearLocalData,
+              ),
             ),
     );
   }

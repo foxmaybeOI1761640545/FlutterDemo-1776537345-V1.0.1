@@ -1,5 +1,7 @@
 import "package:flutter/material.dart";
 
+import "l10n/app_locale.dart";
+
 const List<String> unifiedFontFallback = <String>[
   "Microsoft YaHei UI",
   "Microsoft YaHei",
@@ -60,14 +62,16 @@ extension SubdivisionExtension on Subdivision {
     };
   }
 
-  String get label {
+  String labelFor(AppLanguage language) {
     return switch (this) {
-      Subdivision.none => "无切分",
-      Subdivision.eighth => "8分",
-      Subdivision.sixteenth => "16分",
-      Subdivision.triplet => "三连音",
+      Subdivision.none => language == AppLanguage.zh ? "无切分" : "None",
+      Subdivision.eighth => language == AppLanguage.zh ? "8分" : "8th",
+      Subdivision.sixteenth => language == AppLanguage.zh ? "16分" : "16th",
+      Subdivision.triplet => language == AppLanguage.zh ? "三连音" : "Triplet",
     };
   }
+
+  String get label => labelFor(AppLanguage.zh);
 
   String get storageValue {
     return switch (this) {
@@ -96,23 +100,27 @@ enum AccentLevel {
 }
 
 extension AccentLevelExtension on AccentLevel {
-  String get label {
+  String labelFor(AppLanguage language) {
     return switch (this) {
-      AccentLevel.strong => "强拍",
-      AccentLevel.normal => "中拍",
-      AccentLevel.weak => "弱拍",
-      AccentLevel.mute => "静音",
+      AccentLevel.strong => language == AppLanguage.zh ? "强拍" : "Strong",
+      AccentLevel.normal => language == AppLanguage.zh ? "中拍" : "Normal",
+      AccentLevel.weak => language == AppLanguage.zh ? "弱拍" : "Weak",
+      AccentLevel.mute => language == AppLanguage.zh ? "静音" : "Mute",
     };
   }
 
-  String get shortLabel {
+  String shortLabelFor(AppLanguage language) {
     return switch (this) {
-      AccentLevel.strong => "强",
-      AccentLevel.normal => "中",
-      AccentLevel.weak => "弱",
-      AccentLevel.mute => "静",
+      AccentLevel.strong => language == AppLanguage.zh ? "强" : "S",
+      AccentLevel.normal => language == AppLanguage.zh ? "中" : "N",
+      AccentLevel.weak => language == AppLanguage.zh ? "弱" : "W",
+      AccentLevel.mute => language == AppLanguage.zh ? "静" : "M",
     };
   }
+
+  String get label => labelFor(AppLanguage.zh);
+
+  String get shortLabel => shortLabelFor(AppLanguage.zh);
 
   String get storageValue {
     return switch (this) {
@@ -149,13 +157,15 @@ enum MetronomeTone {
 }
 
 extension MetronomeToneExtension on MetronomeTone {
-  String get label {
+  String labelFor(AppLanguage language) {
     return switch (this) {
-      MetronomeTone.digital => "Digital",
-      MetronomeTone.wood => "Wood",
-      MetronomeTone.beep => "Beep",
+      MetronomeTone.digital => language == AppLanguage.zh ? "数字" : "Digital",
+      MetronomeTone.wood => language == AppLanguage.zh ? "木质" : "Wood",
+      MetronomeTone.beep => language == AppLanguage.zh ? "蜂鸣" : "Beep",
     };
   }
+
+  String get label => labelFor(AppLanguage.zh);
 
   String get storageValue {
     return switch (this) {
@@ -184,6 +194,7 @@ class AppSettings {
     required this.defaultSubdivision,
     required this.darkTheme,
     required this.visualHints,
+    required this.language,
   });
 
   final double volume;
@@ -193,6 +204,7 @@ class AppSettings {
   final Subdivision defaultSubdivision;
   final bool darkTheme;
   final bool visualHints;
+  final AppLanguage language;
 
   factory AppSettings.defaults() {
     return const AppSettings(
@@ -203,6 +215,7 @@ class AppSettings {
       defaultSubdivision: Subdivision.none,
       darkTheme: true,
       visualHints: true,
+      language: AppLanguage.zh,
     );
   }
 
@@ -214,6 +227,7 @@ class AppSettings {
     Subdivision? defaultSubdivision,
     bool? darkTheme,
     bool? visualHints,
+    AppLanguage? language,
   }) {
     return AppSettings(
       volume: volume ?? this.volume,
@@ -223,6 +237,7 @@ class AppSettings {
       defaultSubdivision: defaultSubdivision ?? this.defaultSubdivision,
       darkTheme: darkTheme ?? this.darkTheme,
       visualHints: visualHints ?? this.visualHints,
+      language: language ?? this.language,
     );
   }
 
@@ -235,6 +250,7 @@ class AppSettings {
       "defaultSubdivision": defaultSubdivision.storageValue,
       "darkTheme": darkTheme,
       "visualHints": visualHints,
+      "language": language.storageValue,
     };
   }
 
@@ -256,6 +272,7 @@ class AppSettings {
       ),
       darkTheme: json["darkTheme"] as bool? ?? defaults.darkTheme,
       visualHints: json["visualHints"] as bool? ?? defaults.visualHints,
+      language: AppLanguageExtension.fromStorage(json["language"] as String?),
     );
   }
 }
@@ -415,28 +432,33 @@ class StoredAppState {
 }
 
 String tempoTerm(int bpm) {
+  return tempoTermForLanguage(bpm, AppLanguage.en);
+}
+
+String tempoTermForLanguage(int bpm, AppLanguage language) {
+  final bool zh = language == AppLanguage.zh;
   if (bpm < 40) {
-    return "Grave";
+    return zh ? "庄板" : "Grave";
   }
   if (bpm < 60) {
-    return "Largo";
+    return zh ? "广板" : "Largo";
   }
   if (bpm < 76) {
-    return "Adagio";
+    return zh ? "柔板" : "Adagio";
   }
   if (bpm < 108) {
-    return "Andante";
+    return zh ? "行板" : "Andante";
   }
   if (bpm < 120) {
-    return "Moderato";
+    return zh ? "中板" : "Moderato";
   }
   if (bpm < 156) {
-    return "Allegro";
+    return zh ? "快板" : "Allegro";
   }
   if (bpm < 176) {
-    return "Vivace";
+    return zh ? "活泼板" : "Vivace";
   }
-  return "Presto";
+  return zh ? "急板" : "Presto";
 }
 
 String formatDateTime(int epochMs) {

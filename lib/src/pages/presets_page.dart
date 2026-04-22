@@ -1,5 +1,6 @@
 import "package:flutter/material.dart";
 
+import "../l10n/app_locale.dart";
 import "../models.dart";
 
 class PresetsPage extends StatelessWidget {
@@ -20,6 +21,7 @@ class PresetsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
+    final AppLanguage language = context.appLanguage;
     final bool isDark = theme.brightness == Brightness.dark;
     final List<Color> backgroundGradient = isDark
         ? <Color>[
@@ -51,12 +53,17 @@ class PresetsPage extends StatelessWidget {
                 children: <Widget>[
                   Row(
                     children: <Widget>[
-                      Text("预设管理", style: theme.textTheme.headlineSmall),
+                      Text(
+                        context.tr(zh: "预设管理", en: "Presets"),
+                        style: theme.textTheme.headlineSmall,
+                      ),
                       const Spacer(),
                       FilledButton.icon(
                         onPressed: onSaveCurrent,
                         icon: const Icon(Icons.save_rounded),
-                        label: const Text("保存当前配置"),
+                        label: Text(
+                          context.tr(zh: "保存当前配置", en: "Save Current"),
+                        ),
                       ),
                     ],
                   ),
@@ -68,7 +75,10 @@ class PresetsPage extends StatelessWidget {
                               child: Padding(
                                 padding: const EdgeInsets.all(24),
                                 child: Text(
-                                  "还没有预设，先在节拍器页调整参数后点击保存。",
+                                  context.tr(
+                                    zh: "还没有预设，先在节拍器页调整参数后点击保存。",
+                                    en: "No presets yet. Configure metronome and tap save.",
+                                  ),
                                   style: theme.textTheme.bodyLarge,
                                   textAlign: TextAlign.center,
                                 ),
@@ -86,26 +96,30 @@ class PresetsPage extends StatelessWidget {
                                     horizontal: 14,
                                     vertical: 8,
                                   ),
-                                  title: Text(preset.name, style: theme.textTheme.titleMedium),
+                                  title: Text(
+                                    preset.name,
+                                    style: theme.textTheme.titleMedium,
+                                  ),
                                   subtitle: Padding(
                                     padding: const EdgeInsets.only(top: 6),
                                     child: Text(
                                       "${preset.config.bpm} BPM"
                                       " | ${preset.config.timeSignature}"
-                                      " | ${preset.config.subdivision.label}"
-                                      " | 最近使用 ${formatDateTime(preset.lastUsedAtEpochMs)}",
+                                      " | ${preset.config.subdivision.labelFor(language)}"
+                                      " | ${context.tr(zh: "最近使用", en: "Last used")} "
+                                      "${formatDateTime(preset.lastUsedAtEpochMs)}",
                                     ),
                                   ),
                                   trailing: Wrap(
                                     spacing: 6,
                                     children: <Widget>[
                                       IconButton(
-                                        tooltip: "加载预设",
+                                        tooltip: context.tr(zh: "加载预设", en: "Load preset"),
                                         onPressed: () => onLoadPreset(preset),
                                         icon: const Icon(Icons.playlist_add_check_rounded),
                                       ),
                                       IconButton(
-                                        tooltip: "删除",
+                                        tooltip: context.tr(zh: "删除", en: "Delete"),
                                         onPressed: () => onDeletePreset(preset.id),
                                         icon: const Icon(Icons.delete_outline_rounded),
                                       ),
