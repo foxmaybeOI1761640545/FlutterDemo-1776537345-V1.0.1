@@ -5,6 +5,7 @@ import "package:flutter/material.dart";
 import "../l10n/app_locale.dart";
 import "../metronome_engine.dart";
 import "../models.dart";
+import "../widgets/section_pill_button.dart";
 import "ear_training_page.dart";
 import "metronome_page.dart";
 import "presets_page.dart";
@@ -332,14 +333,6 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  double _subTabBarHeight(BuildContext context) {
-    final double textScale = MediaQuery.textScalerOf(context)
-        .scale(1.0)
-        .clamp(1.0, 1.35)
-        .toDouble();
-    return 66 * textScale;
-  }
-
   Widget _buildMetronomeSubTabs(BuildContext context) {
     final List<_MetronomeSubTabItem> tabs = <_MetronomeSubTabItem>[
       _MetronomeSubTabItem(
@@ -361,37 +354,31 @@ class _HomeShellState extends State<HomeShell> {
 
     return SafeArea(
       bottom: false,
-      child: SizedBox(
-        height: _subTabBarHeight(context),
-        child: ListView.separated(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+        child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          itemCount: tabs.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (BuildContext context, int index) {
-            final _MetronomeSubTabItem item = tabs[index];
-            return ChoiceChip(
-              selected: _metronomeTab == item.index,
-              onSelected: (_) {
-                setState(() {
-                  _metronomeTab = item.index;
-                });
-              },
-              label: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(item.icon, size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    item.label,
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            );
-          },
+          child: Row(
+            children: List<Widget>.generate(tabs.length * 2 - 1, (int index) {
+              if (index.isOdd) {
+                return const SizedBox(width: 10);
+              }
+              final _MetronomeSubTabItem item = tabs[index ~/ 2];
+              final bool selected = _metronomeTab == item.index;
+              return SectionPillButton(
+                icon: item.icon,
+                label: item.label,
+                selected: selected,
+                onPressed: selected
+                    ? null
+                    : () {
+                        setState(() {
+                          _metronomeTab = item.index;
+                        });
+                      },
+              );
+            }),
+          ),
         ),
       ),
     );

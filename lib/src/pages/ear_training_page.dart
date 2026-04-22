@@ -8,6 +8,7 @@ import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 
 import "../l10n/app_locale.dart";
+import "../widgets/section_pill_button.dart";
 
 enum EarTrainingSpeed {
   slow,
@@ -1671,13 +1672,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   Widget _buildQuestionCountSelector() {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 10,
+      runSpacing: 10,
       children: <int>[10, 20].map((int count) {
-        return ChoiceChip(
-          label: Text(_t(zh: "$count 题", en: "$count Q")),
+        return SectionPillButton(
+          label: _t(zh: "$count 题", en: "$count Q"),
           selected: _questionCount == count,
-          onSelected: (_) {
+          onPressed: _questionCount == count
+              ? null
+              : () {
             setState(() {
               _questionCount = count;
             });
@@ -1689,13 +1692,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   Widget _buildSpeedSelector() {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 10,
+      runSpacing: 10,
       children: EarTrainingSpeed.values.map((EarTrainingSpeed speed) {
-        return ChoiceChip(
-          label: Text(speed.labelFor(_language)),
+        return SectionPillButton(
+          label: speed.labelFor(_language),
           selected: _speed == speed,
-          onSelected: (_) {
+          onPressed: _speed == speed
+              ? null
+              : () {
             setState(() {
               _speed = speed;
             });
@@ -1707,20 +1712,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   Widget _buildModeBPromptFlowSelector() {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 10,
+      runSpacing: 10,
       children: <Widget>[
-        Chip(label: Text(_modeBPromptFlow.labelFor(_language))),
+        SectionPillBadge(
+          icon: Icons.graphic_eq_rounded,
+          label: _modeBPromptFlow.labelFor(_language),
+        ),
       ],
     );
-  }
-
-  double _subTabBarHeight(BuildContext context) {
-    final double textScale = MediaQuery.textScalerOf(context)
-        .scale(1.0)
-        .clamp(1.0, 1.35)
-        .toDouble();
-    return 66 * textScale;
   }
 
   Widget _buildSubTabs() {
@@ -1740,38 +1740,34 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _SubTabItem(index: 4, icon: Icons.settings_rounded, label: _t(zh: "设置", en: "Settings")),
     ];
 
-    return SizedBox(
-      height: _subTabBarHeight(context),
-      child: ListView.separated(
+    final List<Widget> tabButtons = <Widget>[];
+    for (int index = 0; index < tabs.length; index++) {
+      final _SubTabItem item = tabs[index];
+      if (index > 0) {
+        tabButtons.add(const SizedBox(width: 10));
+      }
+      tabButtons.add(
+        SectionPillButton(
+          icon: item.icon,
+          label: item.label,
+          selected: item.index == _currentTab,
+          onPressed: item.index == _currentTab
+              ? null
+              : () {
+                  setState(() {
+                    _currentTab = item.index;
+                  });
+                  _syncPlaybackWithVisibility();
+                },
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        itemCount: tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (BuildContext context, int index) {
-          final _SubTabItem item = tabs[index];
-          return ChoiceChip(
-            label: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(item.icon, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  item.label,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-            selected: item.index == _currentTab,
-            onSelected: (_) {
-              setState(() {
-                _currentTab = item.index;
-              });
-              _syncPlaybackWithVisibility();
-            },
-          );
-        },
+        child: Row(children: tabButtons),
       ),
     );
   }
@@ -2540,6 +2536,45 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     );
   }
 
+  ThemeData _buildEarTrainingTheme(ThemeData base) {
+    final ColorScheme colorScheme = base.colorScheme;
+    final TextStyle buttonTextStyle = (base.textTheme.labelLarge ?? const TextStyle()).copyWith(
+      fontWeight: FontWeight.w700,
+      fontSize: 15,
+      height: 1.32,
+    );
+    final RoundedRectangleBorder buttonShape =
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
+
+    return base.copyWith(
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: buttonShape,
+          textStyle: buttonTextStyle,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: buttonShape,
+          textStyle: buttonTextStyle.copyWith(fontWeight: FontWeight.w600),
+          side: BorderSide(color: colorScheme.outline.withOpacity(0.72)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          shape: buttonShape,
+          textStyle: buttonTextStyle.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -2567,33 +2602,36 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           colors: backgroundGradient,
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: <Widget>[
-            _buildSubTabs(),
-            Expanded(
-              child: IndexedStack(
-                index: _currentTab,
-                children: <Widget>[
-                  Builder(
-                    builder: (BuildContext context) => _buildHomeTab(Theme.of(context)),
-                  ),
-                  Builder(
-                    builder: (BuildContext context) => _buildModeATab(Theme.of(context)),
-                  ),
-                  Builder(
-                    builder: (BuildContext context) => _buildModeBTab(Theme.of(context)),
-                  ),
-                  Builder(
-                    builder: (BuildContext context) => _buildResultsTab(Theme.of(context)),
-                  ),
-                  Builder(
-                    builder: (BuildContext context) => _buildSettingsTab(Theme.of(context)),
-                  ),
-                ],
+      child: Theme(
+        data: _buildEarTrainingTheme(theme),
+        child: SafeArea(
+          child: Column(
+            children: <Widget>[
+              _buildSubTabs(),
+              Expanded(
+                child: IndexedStack(
+                  index: _currentTab,
+                  children: <Widget>[
+                    Builder(
+                      builder: (BuildContext context) => _buildHomeTab(Theme.of(context)),
+                    ),
+                    Builder(
+                      builder: (BuildContext context) => _buildModeATab(Theme.of(context)),
+                    ),
+                    Builder(
+                      builder: (BuildContext context) => _buildModeBTab(Theme.of(context)),
+                    ),
+                    Builder(
+                      builder: (BuildContext context) => _buildResultsTab(Theme.of(context)),
+                    ),
+                    Builder(
+                      builder: (BuildContext context) => _buildSettingsTab(Theme.of(context)),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
