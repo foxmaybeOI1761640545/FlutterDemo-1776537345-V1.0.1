@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          flutter build web --release > build-web.log 2>&1
+          flutter build web --release --web-renderer html > build-web.log 2>&1
           status=$?
           python .github/scripts/emit_github_annotations.py flutter-build build-web.log
           echo "status=$status" >> "$GITHUB_OUTPUT"
