@@ -32,14 +32,14 @@ enum _ModeBPromptFlow {
 extension _ModeBPromptFlowExtension on _ModeBPromptFlow {
   String labelFor(AppLanguage language) {
     return language == AppLanguage.zh
-        ? "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do"
-        : "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do";
+        ? "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do'"
+        : "12345678 1 1 -> Re/Mi/Fa/Sol/La/Ti/Do'";
   }
 
   String waitingStatusFor(AppLanguage language) {
     return language == AppLanguage.zh
-        ? "播放 12345678 1 1 + 目标音(Re~Do)，等待作答"
-        : "Play 12345678 1 1 + target(Re~Do), waiting answer";
+        ? "播放 12345678 1 1 + 目标音(Re~Do')，等待作答"
+        : "Play 12345678 1 1 + target(Re~Do'), waiting answer";
   }
 }
 
@@ -284,6 +284,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final _EarNoteSpec? note = _noteCatalog[noteId];
     if (note == null) {
       return noteId;
+    }
+    if (note.degree == "8") {
+      return "${note.label}'";
     }
     if (_singleOctaveMode && note.octave == _baseOctave) {
       return note.label;
@@ -2081,8 +2084,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         Text(
           singleOctaveChoices
               ? _t(
-                  zh: "请在 Re Mi Fa Sol La Ti Do 中选择一个。",
-                  en: "Choose one from Re Mi Fa Sol La Ti Do.",
+                  zh: "请在 Re Mi Fa Sol La Ti Do' 中选择一个。",
+                  en: "Choose one from Re Mi Fa Sol La Ti Do'.",
                 )
               : _t(
                   zh: "请从当前集合中选择（${choiceNotes.length} 个音，2~8）。",
@@ -2161,7 +2164,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                         width: denseChoices ? 82 : 92,
                         child: const FilledButton(
                           onPressed: null,
-                          child: Text("1Do"),
+                          child: Text("Do"),
                         ),
                       ),
                     ...choiceNotes.map((_EarNoteSpec note) {
