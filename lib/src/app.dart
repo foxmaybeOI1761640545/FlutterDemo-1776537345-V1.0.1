@@ -177,14 +177,20 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
         disabledColor: colorScheme.surfaceContainerHighest.withOpacity(0.24),
         side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.64)),
         shape: const StadiumBorder(),
-        labelStyle: TextStyle(color: colorScheme.onSurface),
+        labelStyle: TextStyle(
+          color: colorScheme.onSurface,
+          height: 1.2,
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
         ).copyWith(
           overlayColor: MaterialStatePropertyAll<Color>(
             colorScheme.onPrimary.withOpacity(0.08),
@@ -196,13 +202,19 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
           foregroundColor: colorScheme.onSurface,
           side: BorderSide(color: colorScheme.outline.withOpacity(0.62)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: colorScheme.secondary,
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
         ),
       ),
       switchTheme: SwitchThemeData(

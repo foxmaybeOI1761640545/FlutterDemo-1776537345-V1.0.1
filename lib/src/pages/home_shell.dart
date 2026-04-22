@@ -354,7 +354,7 @@ class _HomeShellState extends State<HomeShell> {
     return SafeArea(
       bottom: false,
       child: SizedBox(
-        height: 58,
+        height: 66,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),

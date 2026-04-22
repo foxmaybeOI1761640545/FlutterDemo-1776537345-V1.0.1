@@ -1730,7 +1730,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     ];
 
     return SizedBox(
-      height: 58,
+      height: 66,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
