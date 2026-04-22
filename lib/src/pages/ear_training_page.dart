@@ -1747,7 +1747,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
               children: <Widget>[
                 Icon(item.icon, size: 16),
                 const SizedBox(width: 6),
-                Text(item.label),
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  softWrap: false,
+                  textHeightBehavior: const TextHeightBehavior(
+                    applyHeightToFirstAscent: false,
+                    applyHeightToLastDescent: false,
+                  ),
+                ),
               ],
             ),
             selected: item.index == _currentTab,
@@ -2002,6 +2010,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       foregroundColor: foregroundColor,
       minimumSize: const Size(0, 46),
       side: borderSide,
+      disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(
+        theme.brightness == Brightness.dark ? 0.62 : 0.78,
+      ),
+      disabledForegroundColor: theme.colorScheme.onSurface.withOpacity(
+        theme.brightness == Brightness.dark ? 0.82 : 0.72,
+      ),
     );
   }
 

@@ -179,7 +179,6 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
         shape: const StadiumBorder(),
         labelStyle: TextStyle(
           color: colorScheme.onSurface,
-          height: 1.2,
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -189,7 +188,6 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
-            height: 1.2,
           ),
         ).copyWith(
           overlayColor: MaterialStatePropertyAll<Color>(
@@ -204,7 +202,6 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
-            height: 1.2,
           ),
         ),
       ),
@@ -213,7 +210,6 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
           foregroundColor: colorScheme.secondary,
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
-            height: 1.2,
           ),
         ),
       ),

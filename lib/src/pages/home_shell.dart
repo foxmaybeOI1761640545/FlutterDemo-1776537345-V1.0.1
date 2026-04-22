@@ -374,7 +374,15 @@ class _HomeShellState extends State<HomeShell> {
                 children: <Widget>[
                   Icon(item.icon, size: 16),
                   const SizedBox(width: 6),
-                  Text(item.label),
+                  Text(
+                    item.label,
+                    maxLines: 1,
+                    softWrap: false,
+                    textHeightBehavior: const TextHeightBehavior(
+                      applyHeightToFirstAscent: false,
+                      applyHeightToLastDescent: false,
+                    ),
+                  ),
                 ],
               ),
             );
