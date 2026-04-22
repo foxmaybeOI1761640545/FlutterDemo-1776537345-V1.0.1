@@ -1,5 +1,6 @@
 ﻿import "package:flutter/material.dart";
 
+import "../l10n/app_locale.dart";
 import "../models.dart";
 import "../widgets/repeat_action_icon_button.dart";
 
