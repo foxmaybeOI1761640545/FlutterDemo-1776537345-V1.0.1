@@ -378,10 +378,6 @@ class _HomeShellState extends State<HomeShell> {
                     item.label,
                     maxLines: 1,
                     softWrap: false,
-                    textHeightBehavior: const TextHeightBehavior(
-                      applyHeightToFirstAscent: false,
-                      applyHeightToLastDescent: false,
-                    ),
                   ),
                 ],
               ),
