@@ -104,13 +104,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   static const String _defaultNoteId = "2_5";
   static const String _defaultNoteAssetPath = "audio/12345678/2-Re.WAV";
   static const String _modeBDefaultKeyLeadInAssetPath = "audio/12345678/12345678-1-1.WAV";
-  static const Duration _modeBPromptGap = Duration(milliseconds: 150);
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
   static const Duration _defaultNoteDuration = Duration(milliseconds: 4200);
   static const Duration _defaultLeadInDuration = Duration(milliseconds: 5200);
   static const Duration _defaultHintDuration = Duration(milliseconds: 200);
-  static const Duration _modeBReplayTailDuration = Duration(milliseconds: 260);
-  static const Duration _modeBAutoAdvanceFallback = Duration(milliseconds: 1200);
   static final Map<String, _EarNoteSpec> _noteCatalog = (() {
     final Map<String, _EarNoteSpec> catalog = <String, _EarNoteSpec>{};
     for (int octave = _assetMinOctave; octave <= _assetMaxOctave; octave++) {
@@ -487,6 +484,22 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return _assetDuration(assetPath, fallback: _defaultNoteDuration);
   }
 
+  Future<void> _warmUpNoteDurations(Iterable<String> noteIds) async {
+    final Set<String> uniqueIds = noteIds.toSet();
+    if (uniqueIds.isEmpty) {
+      return;
+    }
+    await Future.wait<Duration>(uniqueIds.map(_noteDurationById));
+  }
+
+  Future<void> _warmUpModeBPromptDurations(Iterable<String> noteIds) async {
+    await Future.wait<Duration>(<Future<Duration>>[
+      _leadInDuration(),
+      _assetDuration(_hintAssetPath, fallback: _defaultHintDuration),
+      ...noteIds.toSet().map(_noteDurationById),
+    ]);
+  }
+
   Future<Duration> _modeBReplayStartDelay({required bool withHint}) async {
     if (!withHint) {
       return Duration.zero;
@@ -495,32 +508,67 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       _hintAssetPath,
       fallback: _defaultHintDuration,
     );
-    final int millis = (hintDuration.inMilliseconds * 0.55)
-        .round()
-        .clamp(80, 260)
-        .toInt();
-    return Duration(milliseconds: millis);
+    return _scaleDuration(
+      hintDuration,
+      factor: 0.55,
+      minMilliseconds: 80,
+      maxMilliseconds: 260,
+    );
+  }
+
+  Future<Duration> _modeBPromptGapDuration(String noteId) async {
+    final Duration targetDuration = await _noteDurationById(noteId);
+    return _scaleDuration(
+      targetDuration,
+      factor: 0.035,
+      minMilliseconds: 80,
+      maxMilliseconds: 260,
+    );
+  }
+
+  Duration _modeBReplayTailDuration(Duration answerDuration) {
+    return _scaleDuration(
+      answerDuration,
+      factor: 0.07,
+      minMilliseconds: 140,
+      maxMilliseconds: 760,
+    );
+  }
+
+  Duration _modeBHintSettleDuration(Duration hintDuration) {
+    return _scaleDuration(
+      hintDuration,
+      factor: 0.45,
+      minMilliseconds: 40,
+      maxMilliseconds: 360,
+    );
   }
 
   Future<Duration> _modeBAutoAdvanceDelay({
     required bool isCorrect,
     required String answerNoteId,
   }) async {
+    final Duration answerDuration = await _noteDurationById(answerNoteId);
     if (!_autoPlayAnswerInModeB) {
-      return _modeBAutoAdvanceFallback;
+      final int ms = (answerDuration.inMilliseconds * 0.22)
+          .round()
+          .clamp(450, 1200)
+          .toInt();
+      return Duration(milliseconds: ms);
     }
 
     final bool withHint = !isCorrect && _errorHintEnabled;
     final Duration replayStartDelay = await _modeBReplayStartDelay(withHint: withHint);
-    final Duration answerDuration = await _noteDurationById(answerNoteId);
-    Duration delay = replayStartDelay + answerDuration + _modeBReplayTailDuration;
+    Duration delay =
+        replayStartDelay + answerDuration + _modeBReplayTailDuration(answerDuration);
 
     if (withHint) {
       final Duration hintDuration = await _assetDuration(
         _hintAssetPath,
         fallback: _defaultHintDuration,
       );
-      final Duration hintWindow = hintDuration + const Duration(milliseconds: 120);
+      final Duration hintWindow =
+          hintDuration + _modeBHintSettleDuration(hintDuration);
       if (hintWindow > delay) {
         delay = hintWindow;
       }
@@ -579,6 +627,19 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     });
   }
 
+  bool _isCurrentModeBAnswerCorrect() {
+    if (_modeBQuestions.isEmpty ||
+        _modeBIndex < 0 ||
+        _modeBIndex >= _modeBQuestions.length) {
+      return false;
+    }
+    final String? selected = _modeBSelected;
+    if (selected == null) {
+      return false;
+    }
+    return selected == _modeBQuestions[_modeBIndex];
+  }
+
   void _resumeModeBForVisibility() {
     if (!_modeBRunning || !_modeBPaused || !_modeBAutoPausedByVisibility) {
       return;
@@ -591,11 +652,30 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     });
     if (_modeBLocked) {
       if (_autoAdvanceToNextQuestion) {
+        final String? answerNoteId = _modeBCurrentNoteId;
+        if (answerNoteId == null) {
+          _advanceModeB();
+          return;
+        }
+        final bool isCorrect = _isCurrentModeBAnswerCorrect();
         _invalidateModeBFeedbackTimer();
-        _modeBFeedbackTimer = Timer(
-          const Duration(milliseconds: 300),
-          _advanceModeB,
-        );
+        final int feedbackToken = _modeBFeedbackToken;
+        final int answerIndex = _modeBIndex;
+        unawaited(() async {
+          final Duration delay = await _modeBAutoAdvanceDelay(
+            isCorrect: isCorrect,
+            answerNoteId: answerNoteId,
+          );
+          if (!mounted ||
+              !_modeBRunning ||
+              _modeBPaused ||
+              !_modeBLocked ||
+              _modeBIndex != answerIndex ||
+              feedbackToken != _modeBFeedbackToken) {
+            return;
+          }
+          _modeBFeedbackTimer = Timer(delay, _advanceModeB);
+        }());
       }
       return;
     }
@@ -660,11 +740,35 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   Duration _playbackTimeoutFor(Duration duration) {
-    final Duration withBuffer = duration + const Duration(milliseconds: 850);
-    if (withBuffer < const Duration(seconds: 2)) {
-      return const Duration(seconds: 2);
+    final Duration buffer = _scaleDuration(
+      duration,
+      factor: 0.24,
+      minMilliseconds: 450,
+      maxMilliseconds: 2500,
+    );
+    final Duration timeout = duration + buffer;
+    final Duration floor = _scaleDuration(
+      duration,
+      factor: 1,
+      minMilliseconds: 1600,
+      maxMilliseconds: 12000,
+    );
+    if (timeout < floor) {
+      return floor;
     }
-    return withBuffer;
+    return timeout;
+  }
+
+  Duration _scaleDuration(
+    Duration base, {
+    required double factor,
+    required int minMilliseconds,
+    required int maxMilliseconds,
+    int addMilliseconds = 0,
+  }) {
+    final int scaled = (base.inMilliseconds * factor).round() + addMilliseconds;
+    final int clamped = scaled.clamp(minMilliseconds, maxMilliseconds).toInt();
+    return Duration(milliseconds: clamped);
   }
 
   Future<Duration> _leadInDuration() {
@@ -681,13 +785,24 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final Duration timeout = _playbackTimeoutFor(leadInDuration);
 
     try {
+      bool timedOut = false;
       final Future<void> completed = _leadInPlayer.onPlayerComplete.first;
       await _leadInPlayer.play(
         AssetSource(_modeBDefaultKeyLeadInAssetPath),
         volume: 0.92,
         mode: PlayerMode.mediaPlayer,
       );
-      await completed.timeout(timeout, onTimeout: () => Future<void>.value());
+      await completed.timeout(timeout, onTimeout: () {
+        timedOut = true;
+        return Future<void>.value();
+      });
+      if (timedOut) {
+        await _leadInPlayer.stop();
+        throw TimeoutException(
+          "Lead-in playback timeout: $_modeBDefaultKeyLeadInAssetPath",
+          timeout,
+        );
+      }
     } catch (error) {
       debugPrint("Ear training lead-in playback failed: $error");
       rethrow;
@@ -711,13 +826,21 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     Object? lastError;
     for (final PlayerMode mode in tryModes) {
       try {
+        bool timedOut = false;
         final Future<void> completed = player.onPlayerComplete.first;
         await player.play(
           AssetSource(assetPath),
           volume: volume,
           mode: mode,
         );
-        await completed.timeout(timeout, onTimeout: () => Future<void>.value());
+        await completed.timeout(timeout, onTimeout: () {
+          timedOut = true;
+          return Future<void>.value();
+        });
+        if (timedOut) {
+          await player.stop();
+          continue;
+        }
         return true;
       } catch (error) {
         lastError = error;
@@ -744,7 +867,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
   }
 
-  Future<void> _playNoteAndWait(
+  Future<bool> _playNoteAndWait(
     String noteId, {
     double volume = 0.9,
   }) async {
@@ -758,9 +881,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       );
       if (!played) {
         debugPrint("Ear training note wait playback did not complete: $assetPath");
+        return false;
       }
+      return true;
     } catch (error) {
       debugPrint("Ear training note wait playback failed: $error");
+      return false;
     }
   }
 
@@ -826,7 +952,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     )) {
       return;
     }
-    await Future<void>.delayed(_modeBPromptGap);
+    final Duration promptGap = await _modeBPromptGapDuration(noteId);
+    if (promptGap > Duration.zero) {
+      await Future<void>.delayed(promptGap);
+    }
 
     if (!_canContinueModeBPrompt(
       token: token,
@@ -834,7 +963,23 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     )) {
       return;
     }
-    await _playNoteAndWait(noteId, volume: 0.94);
+    final bool played = await _playNoteAndWait(noteId, volume: 0.94);
+
+    if (!_canContinueModeBPrompt(
+      token: token,
+      requireModeBRunning: requireModeBRunning,
+    )) {
+      return;
+    }
+    if (!played) {
+      if (requireModeBRunning) {
+        setState(() {
+          _modeBPromptReadyForAnswer = false;
+          _modeBStatus = "Prompt playback failed, tap Replay Prompt";
+        });
+      }
+      return;
+    }
 
     if (!_canContinueModeBPrompt(
       token: token,
@@ -915,14 +1060,68 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     };
   }
 
-  Duration _modeAPhaseDuration(_ModeAPhase phase) {
-    final bool slow = _speed == EarTrainingSpeed.slow;
+  String _modeADurationNoteIdForPhase(_ModeAPhase phase, String questionNoteId) {
     return switch (phase) {
-      _ModeAPhase.tonic => Duration(milliseconds: slow ? 5600 : 4600),
-      _ModeAPhase.target => Duration(milliseconds: slow ? 5600 : 4600),
-      _ModeAPhase.think => Duration(milliseconds: slow ? 2500 : 1800),
-      _ModeAPhase.answer => Duration(milliseconds: slow ? 1300 : 950),
-      _ModeAPhase.replay => Duration(milliseconds: slow ? 5600 : 4600),
+      _ModeAPhase.tonic => _tonicNoteIdFor(questionNoteId),
+      _ModeAPhase.target ||
+      _ModeAPhase.think ||
+      _ModeAPhase.answer ||
+      _ModeAPhase.replay => questionNoteId,
+    };
+  }
+
+  Duration _modeAPhaseDuration(_ModeAPhase phase, String noteId) {
+    final bool slow = _speed == EarTrainingSpeed.slow;
+    final String durationNoteId = _modeADurationNoteIdForPhase(phase, noteId);
+    final String assetPath = _resolveNote(durationNoteId).assetPath;
+    final Duration noteDuration =
+        _assetDurationCache[assetPath] ?? _defaultNoteDuration;
+    return switch (phase) {
+      _ModeAPhase.tonic || _ModeAPhase.target || _ModeAPhase.replay => slow
+          ? _scaleDuration(
+              noteDuration,
+              factor: 1.18,
+              addMilliseconds: 520,
+              minMilliseconds: 4800,
+              maxMilliseconds: 9000,
+            )
+          : _scaleDuration(
+              noteDuration,
+              factor: 1.03,
+              addMilliseconds: 260,
+              minMilliseconds: 3600,
+              maxMilliseconds: 7000,
+            ),
+      _ModeAPhase.think => slow
+          ? _scaleDuration(
+              noteDuration,
+              factor: 0.56,
+              addMilliseconds: 260,
+              minMilliseconds: 1800,
+              maxMilliseconds: 4300,
+            )
+          : _scaleDuration(
+              noteDuration,
+              factor: 0.40,
+              addMilliseconds: 160,
+              minMilliseconds: 1200,
+              maxMilliseconds: 3200,
+            ),
+      _ModeAPhase.answer => slow
+          ? _scaleDuration(
+              noteDuration,
+              factor: 0.30,
+              addMilliseconds: 120,
+              minMilliseconds: 900,
+              maxMilliseconds: 2400,
+            )
+          : _scaleDuration(
+              noteDuration,
+              factor: 0.22,
+              addMilliseconds: 70,
+              minMilliseconds: 700,
+              maxMilliseconds: 1800,
+            ),
     };
   }
 
@@ -937,16 +1136,27 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _startModeA() {
+    unawaited(_startModeAInternal());
+  }
+
+  Future<void> _startModeAInternal() async {
     _modeATimer?.cancel();
     _cancelAudioSequence();
-    _modeAWatch
-      ..reset()
-      ..start();
+    _modeAWatch.reset();
 
     final List<String> questions = _buildQuestionSet(_questionCount);
     if (questions.isEmpty) {
       return;
     }
+    final Set<String> warmUpNoteIds = <String>{
+      ...questions,
+      ...questions.map(_tonicNoteIdFor),
+    };
+    await _warmUpNoteDurations(warmUpNoteIds);
+    if (!mounted) {
+      return;
+    }
+    _modeAWatch.start();
 
     setState(() {
       _currentTab = 1;
@@ -969,8 +1179,12 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (!_modeARunning || _modeAPaused || !_isModeATabVisible || _modeAQuestions.isEmpty) {
       return;
     }
+    final String? noteId = _modeACurrentNoteId;
+    if (noteId == null) {
+      return;
+    }
     _modeATimer?.cancel();
-    _modeATimer = Timer(_modeAPhaseDuration(_modeAPhase), _advanceModeA);
+    _modeATimer = Timer(_modeAPhaseDuration(_modeAPhase, noteId), _advanceModeA);
   }
 
   void _advanceModeA() {
@@ -1100,11 +1314,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _startModeB({List<String>? customQuestions}) {
+    unawaited(_startModeBInternal(customQuestions: customQuestions));
+  }
+
+  Future<void> _startModeBInternal({List<String>? customQuestions}) async {
     _invalidateModeBFeedbackTimer();
     _cancelAudioSequence();
-    _modeBWatch
-      ..reset()
-      ..start();
+    _modeBWatch.reset();
 
     final List<String> questions = customQuestions == null || customQuestions.isEmpty
         ? _buildQuestionSet(_questionCount)
@@ -1112,6 +1328,11 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (questions.isEmpty) {
       return;
     }
+    await _warmUpModeBPromptDurations(questions);
+    if (!mounted) {
+      return;
+    }
+    _modeBWatch.start();
 
     setState(() {
       _currentTab = 2;
