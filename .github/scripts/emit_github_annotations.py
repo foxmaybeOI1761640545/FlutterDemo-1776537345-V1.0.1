@@ -30,6 +30,20 @@ def emit(level: str, message: str, file_path: str | None = None, line: str | Non
     print("".join(parts))
 
 
+def emit_log_tail(level: str, log_path: Path, title: str) -> None:
+    lines = [
+        line.rstrip()
+        for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        if line.strip()
+    ]
+    if not lines:
+        emit(level=level, title=title, message=f"{log_path.as_posix()} is empty")
+        return
+
+    tail = "\n".join(lines[-25:])
+    emit(level=level, title=title, message=tail[-5000:])
+
+
 def from_dart_machine(log_path: Path) -> int:
     count = 0
     for raw in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -92,6 +106,11 @@ def main() -> int:
         emit(
             level="warning",
             message=f"No structured diagnostics were parsed from {log_path.as_posix()}",
+        )
+        emit_log_tail(
+            level="warning",
+            log_path=log_path,
+            title="raw-log-tail",
         )
     return 0
 
