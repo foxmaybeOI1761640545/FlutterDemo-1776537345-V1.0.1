@@ -1,9 +1,11 @@
 import "dart:async";
 import "dart:math";
+import "dart:typed_data";
 
 import "package:audioplayers/audioplayers.dart";
 import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
+import "package:flutter/services.dart";
 
 enum EarTrainingSpeed {
   slow,
@@ -102,10 +104,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   static const String _defaultNoteId = "2_5";
   static const String _defaultNoteAssetPath = "audio/12345678/2-Re.WAV";
   static const String _modeBDefaultKeyLeadInAssetPath = "audio/12345678/12345678-1-1.WAV";
-  static const Duration _modeBDefaultKeyLeadInMaxDuration = Duration(seconds: 20);
-  static const Duration _modeBPromptNoteMaxDuration = Duration(seconds: 8);
   static const Duration _modeBPromptGap = Duration(milliseconds: 150);
   static const String _hintAssetPath = "audio/beep-subdivision.wav";
+  static const Duration _defaultNoteDuration = Duration(milliseconds: 4200);
+  static const Duration _defaultLeadInDuration = Duration(milliseconds: 5200);
+  static const Duration _defaultHintDuration = Duration(milliseconds: 200);
+  static const Duration _modeBReplayTailDuration = Duration(milliseconds: 260);
+  static const Duration _modeBAutoAdvanceFallback = Duration(milliseconds: 1200);
   static final Map<String, _EarNoteSpec> _noteCatalog = (() {
     final Map<String, _EarNoteSpec> catalog = <String, _EarNoteSpec>{};
     for (int octave = _assetMinOctave; octave <= _assetMaxOctave; octave++) {
@@ -170,6 +175,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   bool _modeBAutoPausedByVisibility = false;
   bool _modeBPromptReadyForAnswer = false;
   bool _modeBLocked = false;
+  int _modeBFeedbackToken = 0;
   int _modeBCorrect = 0;
   int _modeBReplayCount = 0;
   String _modeBStatus = "Not started";
@@ -181,6 +187,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   _SessionRecord? _latestModeBRecord;
   final List<_SessionRecord> _history = <_SessionRecord>[];
   int _audioSequenceToken = 0;
+  final Map<String, Duration> _assetDurationCache = <String, Duration>{};
+  final Map<String, Future<Duration>> _assetDurationLoaders =
+      <String, Future<Duration>>{};
   Future<void>? _iosAudioContextLoader;
   bool _iosAudioContextConfigured = false;
 
@@ -375,6 +384,151 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return _audioSequenceToken;
   }
 
+  void _invalidateModeBFeedbackTimer() {
+    _modeBFeedbackTimer?.cancel();
+    _modeBFeedbackToken += 1;
+  }
+
+  String _bundleAssetPath(String assetPath) {
+    if (assetPath.startsWith("assets/")) {
+      return assetPath;
+    }
+    return "assets/$assetPath";
+  }
+
+  Duration? _tryParseWavDuration(ByteData data) {
+    final Uint8List bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
+    if (bytes.length < 44) {
+      return null;
+    }
+    String readFourCc(int offset) {
+      if (offset + 4 > bytes.length) {
+        return "";
+      }
+      return String.fromCharCodes(bytes.sublist(offset, offset + 4));
+    }
+
+    if (readFourCc(0) != "RIFF" || readFourCc(8) != "WAVE") {
+      return null;
+    }
+
+    int? byteRate;
+    int? dataChunkSize;
+    int offset = 12;
+    while (offset + 8 <= bytes.length) {
+      final String chunkId = readFourCc(offset);
+      final int chunkSize = data.getUint32(offset + 4, Endian.little);
+      final int payloadOffset = offset + 8;
+      if (payloadOffset + chunkSize > bytes.length) {
+        break;
+      }
+
+      if (chunkId == "fmt " && chunkSize >= 16) {
+        byteRate = data.getUint32(payloadOffset + 8, Endian.little);
+      } else if (chunkId == "data") {
+        dataChunkSize = chunkSize;
+      }
+
+      if (byteRate != null && dataChunkSize != null) {
+        break;
+      }
+      offset = payloadOffset + chunkSize + (chunkSize.isOdd ? 1 : 0);
+    }
+
+    if (byteRate == null || dataChunkSize == null || byteRate <= 0) {
+      return null;
+    }
+    final int micros = ((dataChunkSize * 1000000) / byteRate).round();
+    if (micros <= 0) {
+      return null;
+    }
+    return Duration(microseconds: micros);
+  }
+
+  Future<Duration> _assetDuration(
+    String assetPath, {
+    required Duration fallback,
+  }) async {
+    final Duration? cached = _assetDurationCache[assetPath];
+    if (cached != null) {
+      return cached;
+    }
+    final Future<Duration>? inFlight = _assetDurationLoaders[assetPath];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final Future<Duration> loader = (() async {
+      Duration resolved = fallback;
+      try {
+        final ByteData data = await rootBundle.load(_bundleAssetPath(assetPath));
+        final Duration? parsed = _tryParseWavDuration(data);
+        if (parsed != null) {
+          resolved = parsed;
+        }
+      } catch (_) {
+        resolved = fallback;
+      } finally {
+        _assetDurationLoaders.remove(assetPath);
+      }
+      _assetDurationCache[assetPath] = resolved;
+      return resolved;
+    })();
+
+    _assetDurationLoaders[assetPath] = loader;
+    return loader;
+  }
+
+  Future<Duration> _noteDurationById(String noteId) {
+    final String assetPath = _resolveNote(noteId).assetPath;
+    return _assetDuration(assetPath, fallback: _defaultNoteDuration);
+  }
+
+  Future<Duration> _modeBReplayStartDelay({required bool withHint}) async {
+    if (!withHint) {
+      return Duration.zero;
+    }
+    final Duration hintDuration = await _assetDuration(
+      _hintAssetPath,
+      fallback: _defaultHintDuration,
+    );
+    final int millis = (hintDuration.inMilliseconds * 0.55)
+        .round()
+        .clamp(80, 260)
+        .toInt();
+    return Duration(milliseconds: millis);
+  }
+
+  Future<Duration> _modeBAutoAdvanceDelay({
+    required bool isCorrect,
+    required String answerNoteId,
+  }) async {
+    if (!_autoPlayAnswerInModeB) {
+      return _modeBAutoAdvanceFallback;
+    }
+
+    final bool withHint = !isCorrect && _errorHintEnabled;
+    final Duration replayStartDelay = await _modeBReplayStartDelay(withHint: withHint);
+    final Duration answerDuration = await _noteDurationById(answerNoteId);
+    Duration delay = replayStartDelay + answerDuration + _modeBReplayTailDuration;
+
+    if (withHint) {
+      final Duration hintDuration = await _assetDuration(
+        _hintAssetPath,
+        fallback: _defaultHintDuration,
+      );
+      final Duration hintWindow = hintDuration + const Duration(milliseconds: 120);
+      if (hintWindow > delay) {
+        delay = hintWindow;
+      }
+    }
+
+    return delay;
+  }
+
   bool get _isModeATabVisible => widget.isActive && _currentTab == 1;
 
   bool get _isModeBTabVisible => widget.isActive && _currentTab == 2;
@@ -414,7 +568,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (!_modeBRunning || _modeBPaused) {
       return;
     }
-    _modeBFeedbackTimer?.cancel();
+    _invalidateModeBFeedbackTimer();
     _modeBWatch.stop();
     _cancelAudioSequence();
     setState(() {
@@ -437,7 +591,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     });
     if (_modeBLocked) {
       if (_autoAdvanceToNextQuestion) {
-        _modeBFeedbackTimer?.cancel();
+        _invalidateModeBFeedbackTimer();
         _modeBFeedbackTimer = Timer(
           const Duration(milliseconds: 300),
           _advanceModeB,
@@ -900,7 +1054,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _startModeB({List<String>? customQuestions}) {
-    _modeBFeedbackTimer?.cancel();
+    _invalidateModeBFeedbackTimer();
     _cancelAudioSequence();
     _modeBWatch
       ..reset()
@@ -945,7 +1099,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final String answer = _modeBQuestions[_modeBIndex];
     final String answerLabel = _noteDisplayLabel(answer);
     final bool isCorrect = selected == answer;
-    _modeBFeedbackTimer?.cancel();
+    _invalidateModeBFeedbackTimer();
 
     setState(() {
       _modeBLocked = true;
@@ -971,12 +1125,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       unawaited(_playHintSound());
     }
     if (_autoPlayAnswerInModeB) {
-      final Duration delay =
-          (!isCorrect && _errorHintEnabled)
-              ? const Duration(milliseconds: 140)
-              : Duration.zero;
       final String answerToReplay = answer;
+      final bool withHint = !isCorrect && _errorHintEnabled;
       unawaited(() async {
+        final Duration delay = await _modeBReplayStartDelay(withHint: withHint);
         if (delay > Duration.zero) {
           await Future<void>.delayed(delay);
         }
@@ -988,10 +1140,24 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     }
 
     if (_autoAdvanceToNextQuestion) {
-      _modeBFeedbackTimer = Timer(
-        Duration(milliseconds: isCorrect ? 550 : 850),
-        _advanceModeB,
-      );
+      final int feedbackToken = _modeBFeedbackToken;
+      final int answerIndex = _modeBIndex;
+      final String answerToReplay = answer;
+      unawaited(() async {
+        final Duration delay = await _modeBAutoAdvanceDelay(
+          isCorrect: isCorrect,
+          answerNoteId: answerToReplay,
+        );
+        if (!mounted ||
+            !_modeBRunning ||
+            _modeBPaused ||
+            !_modeBLocked ||
+            _modeBIndex != answerIndex ||
+            feedbackToken != _modeBFeedbackToken) {
+          return;
+        }
+        _modeBFeedbackTimer = Timer(delay, _advanceModeB);
+      }());
     }
   }
 
@@ -999,7 +1165,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     if (!mounted || !_modeBRunning || _modeBPaused) {
       return;
     }
-    _modeBFeedbackTimer?.cancel();
+    _invalidateModeBFeedbackTimer();
 
     if (_modeBIndex + 1 >= _modeBQuestions.length) {
       _finishModeB();
@@ -1018,7 +1184,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _finishModeB() {
-    _modeBFeedbackTimer?.cancel();
+    _invalidateModeBFeedbackTimer();
     _modeBWatch.stop();
     _cancelAudioSequence();
 
@@ -1052,7 +1218,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
   }
 
   void _exitModeB() {
-    _modeBFeedbackTimer?.cancel();
+    _invalidateModeBFeedbackTimer();
     _modeBWatch.stop();
     _cancelAudioSequence();
     setState(() {
