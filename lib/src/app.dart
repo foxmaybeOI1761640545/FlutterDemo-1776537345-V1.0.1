@@ -107,7 +107,6 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
     final bool isDark = brightness == Brightness.dark;
     final ColorScheme colorScheme = _buildColorScheme(brightness: brightness);
     final TextTheme textTheme = ThemeData(brightness: brightness).textTheme.apply(
-          fontFamily: "Segoe UI",
           fontFamilyFallback: unifiedFontFallback,
           bodyColor: colorScheme.onSurface,
           displayColor: colorScheme.onSurface,
@@ -123,7 +122,6 @@ class _PulseBeatAppState extends State<PulseBeatApp> {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
       canvasColor: colorScheme.surface,
-      fontFamily: "Segoe UI",
       textTheme: textTheme.copyWith(
         headlineSmall: textTheme.headlineSmall?.copyWith(
           fontWeight: FontWeight.w700,

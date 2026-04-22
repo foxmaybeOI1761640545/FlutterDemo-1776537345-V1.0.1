@@ -3,13 +3,15 @@ import "package:flutter/material.dart";
 import "l10n/app_locale.dart";
 
 const List<String> unifiedFontFallback = <String>[
+  "Noto Sans SC",
+  "Noto Sans CJK SC",
+  "Source Han Sans SC",
+  "PingFang SC",
+  "Hiragino Sans GB",
   "Microsoft YaHei UI",
   "Microsoft YaHei",
-  "PingFang SC",
-  "Noto Sans CJK SC",
-  "Noto Sans SC",
-  "Source Han Sans SC",
   "Arial Unicode MS",
+  "Segoe UI",
 ];
 
 const int kMinBpm = 20;
