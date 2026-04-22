@@ -48,6 +48,13 @@ enum _ModeAPhase {
   replay,
 }
 
+enum _ModeBDetailTone {
+  idle,
+  waiting,
+  correct,
+  wrong,
+}
+
 class _DegreeSpec {
   const _DegreeSpec({
     required this.degree,
@@ -1874,14 +1881,29 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     final String? answer = _modeBCurrentNoteId;
     Color? backgroundColor;
     Color? foregroundColor;
+    BorderSide borderSide = BorderSide.none;
 
     if (_modeBLocked && answer != null) {
       if (noteId == answer) {
-        backgroundColor = theme.colorScheme.secondaryContainer;
-        foregroundColor = theme.colorScheme.onSecondaryContainer;
+        backgroundColor = theme.brightness == Brightness.dark
+            ? const Color(0xFF2D7A46)
+            : const Color(0xFF1E6B39);
+        foregroundColor = Colors.white;
+        borderSide = BorderSide(
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFFA7E3B9)
+              : const Color(0xFF0E5A2B),
+          width: 2,
+        );
       } else if (noteId == _modeBSelected) {
-        backgroundColor = theme.colorScheme.errorContainer;
-        foregroundColor = theme.colorScheme.onErrorContainer;
+        backgroundColor = theme.colorScheme.error;
+        foregroundColor = theme.colorScheme.onError;
+        borderSide = BorderSide(
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFFFFC6C4)
+              : const Color(0xFF7A1E1E),
+          width: 2,
+        );
       }
     }
 
@@ -1889,6 +1911,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
       minimumSize: const Size(0, 46),
+      side: borderSide,
     );
   }
 
@@ -1902,13 +1925,62 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         choiceNotes.map((_EarNoteSpec note) => note.octave).toSet().length <= 1;
     final bool showDisabledOneDoSlot =
         singleOctaveChoices && choiceNotes.length == _degrees.length;
+    final String? answerId = _modeBCurrentNoteId;
+    final bool answeredCorrectly =
+        _modeBLocked &&
+        _modeBSelected != null &&
+        answerId != null &&
+        _modeBSelected == answerId;
+    final _ModeBDetailTone modeBDetailTone;
     final String? modeBDetailMessage;
     if (_modeBFeedback != null) {
       modeBDetailMessage = _modeBFeedback!;
+      modeBDetailTone = answeredCorrectly
+          ? _ModeBDetailTone.correct
+          : _ModeBDetailTone.wrong;
     } else if (_modeBRunning && !_modeBLocked && !_modeBPromptReadyForAnswer) {
       modeBDetailMessage = "Wait for prompt playback to finish before choosing.";
+      modeBDetailTone = _ModeBDetailTone.waiting;
     } else {
       modeBDetailMessage = null;
+      modeBDetailTone = _ModeBDetailTone.idle;
+    }
+
+    final IconData detailIcon = switch (modeBDetailTone) {
+      _ModeBDetailTone.correct => Icons.check_circle_rounded,
+      _ModeBDetailTone.wrong => Icons.cancel_rounded,
+      _ModeBDetailTone.waiting => Icons.hearing_rounded,
+      _ModeBDetailTone.idle => Icons.info_outline_rounded,
+    };
+    final Color detailBackgroundColor = switch (modeBDetailTone) {
+      _ModeBDetailTone.correct => theme.brightness == Brightness.dark
+          ? const Color(0x332D7A46)
+          : const Color(0x221E6B39),
+      _ModeBDetailTone.wrong => theme.brightness == Brightness.dark
+          ? const Color(0x33B95A58)
+          : const Color(0x22B95A58),
+      _ModeBDetailTone.waiting => theme.colorScheme.secondaryContainer.withOpacity(0.28),
+      _ModeBDetailTone.idle => Colors.transparent,
+    };
+    final Color detailBorderColor = switch (modeBDetailTone) {
+      _ModeBDetailTone.correct => theme.brightness == Brightness.dark
+          ? const Color(0xFF80D39A)
+          : const Color(0xFF246E3D),
+      _ModeBDetailTone.wrong => theme.brightness == Brightness.dark
+          ? const Color(0xFFFFB4AB)
+          : const Color(0xFF8E2F2C),
+      _ModeBDetailTone.waiting => theme.colorScheme.secondary.withOpacity(0.58),
+      _ModeBDetailTone.idle => Colors.transparent,
+    };
+    final Color detailTextColor = switch (modeBDetailTone) {
+      _ModeBDetailTone.correct => theme.brightness == Brightness.dark
+          ? const Color(0xFFC9F2D5)
+          : const Color(0xFF195830),
+      _ModeBDetailTone.wrong => theme.brightness == Brightness.dark
+          ? const Color(0xFFFFD5CF)
+          : const Color(0xFF7A2724),
+      _ModeBDetailTone.waiting => theme.colorScheme.onSecondaryContainer,
+      _ModeBDetailTone.idle => theme.colorScheme.onSurface.withOpacity(0.72),
     }
 
     return ListView(
@@ -1939,12 +2011,43 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
                 Text("State: $_modeBStatus"),
                 const SizedBox(height: 6),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 24),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
+                  constraints: const BoxConstraints(minHeight: 42),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    padding: modeBDetailMessage == null
+                        ? EdgeInsets.zero
+                        : const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: modeBDetailMessage == null
+                          ? Colors.transparent
+                          : detailBackgroundColor,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: modeBDetailMessage == null
+                            ? Colors.transparent
+                            : detailBorderColor,
+                        width: modeBDetailMessage == null ? 0 : 1.5,
+                      ),
+                    ),
                     child: modeBDetailMessage == null
                         ? const SizedBox.shrink()
-                        : Text(modeBDetailMessage),
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Icon(detailIcon, size: 18, color: detailTextColor),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  modeBDetailMessage,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: detailTextColor,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
                 const SizedBox(height: 12),
