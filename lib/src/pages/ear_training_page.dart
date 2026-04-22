@@ -985,6 +985,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
     _modeATimer?.cancel();
     _modeAWatch.stop();
+    _cancelAudioSequence();
     setState(() {
       _modeAPaused = true;
       _modeAAutoPausedByVisibility = false;
