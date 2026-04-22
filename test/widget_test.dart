@@ -20,7 +20,13 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 
     await tester.pumpWidget(const PulseBeatApp());
-    await tester.pumpAndSettle();
+    await tester.pump();
+    for (int i = 0; i < 40; i++) {
+      if (find.byType(NavigationBar).evaluate().isNotEmpty) {
+        break;
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
 
     expect(find.byType(MaterialApp), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
