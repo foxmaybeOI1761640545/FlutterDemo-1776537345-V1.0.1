@@ -207,6 +207,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       <String, Future<Duration>>{};
   Future<void>? _iosAudioContextLoader;
   bool _iosAudioContextConfigured = false;
+  Future<void> _playerStopBarrier = Future<void>.value();
 
   AppLanguage get _language => context.appLanguage;
 
@@ -405,10 +406,32 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   int _cancelAudioSequence() {
     _audioSequenceToken += 1;
-    unawaited(_notePlayer.stop());
-    unawaited(_leadInPlayer.stop());
-    unawaited(_hintPlayer.stop());
+    _queueStopAllPlayers();
     return _audioSequenceToken;
+  }
+
+  Future<void> _safeStopPlayer(AudioPlayer player, String playerTag) async {
+    try {
+      await player.stop();
+    } catch (error) {
+      debugPrint("Ear training $playerTag stop failed: $error");
+    }
+  }
+
+  void _queueStopAllPlayers() {
+    _playerStopBarrier = _playerStopBarrier
+        .catchError((Object _) {})
+        .then((_) async {
+          await Future.wait<void>(<Future<void>>[
+            _safeStopPlayer(_notePlayer, "note"),
+            _safeStopPlayer(_leadInPlayer, "lead-in"),
+            _safeStopPlayer(_hintPlayer, "hint"),
+          ]);
+        });
+  }
+
+  Future<void> _waitForPendingPlayerStops() {
+    return _playerStopBarrier.catchError((Object _) {});
   }
 
   void _invalidateModeBFeedbackTimer() {
@@ -742,6 +765,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     required Duration fallbackDuration,
   }) async {
     await _ensurePlatformAudioContext();
+    await _waitForPendingPlayerStops();
     final Duration expectedDuration = await _assetDuration(
       assetPath,
       fallback: fallbackDuration,
@@ -815,6 +839,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
 
   Future<void> _playDefaultKeyLeadInAsset() async {
     await _ensurePlatformAudioContext();
+    await _waitForPendingPlayerStops();
     await _leadInPlayer.stop();
     final Duration leadInDuration = await _leadInDuration();
     final Duration timeout = _playbackTimeoutFor(leadInDuration);
@@ -852,6 +877,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     required bool allowTimeoutAsSuccess,
   }) async {
     await _ensurePlatformAudioContext();
+    await _waitForPendingPlayerStops();
     final Duration expectedDuration = await _assetDuration(
       assetPath,
       fallback: fallbackDuration,
