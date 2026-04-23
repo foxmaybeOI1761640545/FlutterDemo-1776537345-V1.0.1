@@ -7,6 +7,7 @@ import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 
+import "../ear_training_audio_policy.dart";
 import "../l10n/app_locale.dart";
 import "../widgets/section_pill_button.dart";
 
@@ -914,9 +915,7 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       fallback: fallbackDuration,
     );
     final Duration timeout = _playbackTimeoutFor(expectedDuration);
-    // Waiting for completion relies on event semantics that are not reliable
-    // in lowLatency mode across backends, so keep wait-path on mediaPlayer.
-    const List<PlayerMode> tryModes = <PlayerMode>[PlayerMode.mediaPlayer];
+    final List<PlayerMode> tryModes = EarTrainingAudioWaitPolicy.waitPlayerModes;
     await player.stop();
     Object? lastError;
     for (final PlayerMode mode in tryModes) {
@@ -933,7 +932,10 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           return Future<void>.value();
         });
         if (timedOut) {
-          if (allowTimeoutAsSuccess && mode == PlayerMode.mediaPlayer) {
+          if (EarTrainingAudioWaitPolicy.shouldAssumeWaitCompletedAfterTimeout(
+            allowTimeoutAsSuccess: allowTimeoutAsSuccess,
+            mode: mode,
+          )) {
             // Some iOS backends may miss completion callbacks for long assets.
             // When playback started successfully in media mode, treat timeout as done.
             _logAudioEvent(
@@ -1127,7 +1129,8 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       );
       if (requireModeBRunning) {
         setState(() {
-          _modeBPromptReadyForAnswer = true;
+          _modeBPromptReadyForAnswer =
+              EarTrainingAudioWaitPolicy.shouldUnlockAnswerAfterPromptFailure();
           _modeBStatus = _t(
             zh: "提示播放失败，请点击“重播提示”",
             en: "Prompt issue detected, answer unlocked (Replay available)",
