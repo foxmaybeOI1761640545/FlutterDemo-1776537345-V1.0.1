@@ -434,6 +434,20 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
     return _playerStopBarrier.catchError((Object _) {});
   }
 
+  void _logAudioEvent(
+    String event, {
+    Map<String, Object?> details = const <String, Object?>{},
+  }) {
+    if (details.isEmpty) {
+      debugPrint("EarTrainingAudio[$event]");
+      return;
+    }
+    final String detailText = details.entries
+        .map((MapEntry<String, Object?> entry) => "${entry.key}=${entry.value}")
+        .join(", ");
+    debugPrint("EarTrainingAudio[$event] $detailText");
+  }
+
   void _invalidateModeBFeedbackTimer() {
     _modeBFeedbackTimer?.cancel();
     _modeBFeedbackToken += 1;
@@ -857,6 +871,15 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         return Future<void>.value();
       });
       if (timedOut) {
+        _logAudioEvent(
+          "lead_in_timeout",
+          details: <String, Object?>{
+            "asset": _modeBDefaultKeyLeadInAssetPath,
+            "expected_ms": leadInDuration.inMilliseconds,
+            "timeout_ms": timeout.inMilliseconds,
+            "sequence_token": _audioSequenceToken,
+          },
+        );
         await _leadInPlayer.stop();
         throw TimeoutException(
           "Lead-in playback timeout: $_modeBDefaultKeyLeadInAssetPath",
@@ -864,6 +887,14 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
         );
       }
     } catch (error) {
+      _logAudioEvent(
+        "lead_in_failed",
+        details: <String, Object?>{
+          "asset": _modeBDefaultKeyLeadInAssetPath,
+          "error": error.toString(),
+          "sequence_token": _audioSequenceToken,
+        },
+      );
       debugPrint("Ear training lead-in playback failed: $error");
       rethrow;
     }
@@ -905,19 +936,58 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
           if (allowTimeoutAsSuccess && mode == PlayerMode.mediaPlayer) {
             // Some iOS backends may miss completion callbacks for long assets.
             // When playback started successfully in media mode, treat timeout as done.
+            _logAudioEvent(
+              "wait_timeout_assumed_complete",
+              details: <String, Object?>{
+                "asset": assetPath,
+                "mode": mode.name,
+                "expected_ms": expectedDuration.inMilliseconds,
+                "timeout_ms": timeout.inMilliseconds,
+                "sequence_token": _audioSequenceToken,
+              },
+            );
             await player.stop();
             return true;
           }
+          _logAudioEvent(
+            "wait_timeout",
+            details: <String, Object?>{
+              "asset": assetPath,
+              "mode": mode.name,
+              "expected_ms": expectedDuration.inMilliseconds,
+              "timeout_ms": timeout.inMilliseconds,
+              "sequence_token": _audioSequenceToken,
+            },
+          );
           await player.stop();
           continue;
         }
         return true;
       } catch (error) {
         lastError = error;
+        _logAudioEvent(
+          "wait_play_error",
+          details: <String, Object?>{
+            "asset": assetPath,
+            "mode": mode.name,
+            "error": error.toString(),
+            "sequence_token": _audioSequenceToken,
+          },
+        );
         await player.stop();
       }
     }
     if (lastError != null) {
+      _logAudioEvent(
+        "wait_failed",
+        details: <String, Object?>{
+          "asset": assetPath,
+          "expected_ms": expectedDuration.inMilliseconds,
+          "timeout_ms": timeout.inMilliseconds,
+          "error": lastError.toString(),
+          "sequence_token": _audioSequenceToken,
+        },
+      );
       debugPrint("Ear training wait playback failed: $lastError");
     }
     return false;
@@ -1048,6 +1118,13 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       return;
     }
     if (!played) {
+      _logAudioEvent(
+        "mode_b_prompt_target_failed",
+        details: <String, Object?>{
+          "note_id": noteId,
+          "sequence_token": token,
+        },
+      );
       if (requireModeBRunning) {
         setState(() {
           _modeBPromptReadyForAnswer = true;
