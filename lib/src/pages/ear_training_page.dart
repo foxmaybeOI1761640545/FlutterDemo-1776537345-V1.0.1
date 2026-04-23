@@ -883,7 +883,9 @@ class _EarTrainingPageState extends State<EarTrainingPage> {
       fallback: fallbackDuration,
     );
     final Duration timeout = _playbackTimeoutFor(expectedDuration);
-    final List<PlayerMode> tryModes = _preferredPlayerModes(expectedDuration);
+    // Waiting for completion relies on event semantics that are not reliable
+    // in lowLatency mode across backends, so keep wait-path on mediaPlayer.
+    const List<PlayerMode> tryModes = <PlayerMode>[PlayerMode.mediaPlayer];
     await player.stop();
     Object? lastError;
     for (final PlayerMode mode in tryModes) {
